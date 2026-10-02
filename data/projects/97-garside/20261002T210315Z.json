@@ -1,0 +1,17 @@
+{
+  "slug": "97-garside",
+  "projectName": "",
+  "propertyAddress": "97 Garside, Hamilton, ON",
+  "updatedAt": "2026-10-02T21:03:15.979Z",
+  "schedule": [
+    {"id":"g1","activity":"Servicing","startDate":"2025-03-27","endDate":"2025-06-02","status":"complete"},
+    {"id":"g2","activity":"Demo","startDate":"2025-07-21","endDate":"2025-07-29","status":"complete"},
+    {"id":"g3","activity":"Excavation","startDate":"2025-07-31","endDate":"2025-08-07","status":"complete"},
+    {"id":"g4","activity":"Footing","startDate":"2025-09-02","endDate":"2025-09-04","status":"complete"},
+    {"id":"g5","activity":"Foundation","startDate":"2025-09-30","endDate":"2025-10-07","status":"complete"},
+    {"id":"g6","activity":"Backfill","startDate":"2025-10-09","endDate":"2025-10-30","status":"complete"},
+    {"id":"g7","activity":"Framing","startDate":"2025-11-03","endDate":"2025-11-04","status":"complete"},
+    {"id":"g8","activity":"Roof","startDate":"2025-11-16","endDate":"2025-11-20","status":"complete"},
+    {"id":"g9","activity":"Brick Veneer","startDate":"2025-11-30","endDate":"2025-12-11","status":"complete"}
+  ]
+}
