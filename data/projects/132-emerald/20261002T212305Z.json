@@ -1,0 +1,30 @@
+{
+  "slug": "132-emerald",
+  "projectName": "McGivney",
+  "propertyAddress": "132 Emerald St S Hamilton, ON L8N 2V5, Canada",
+  "updatedAt": "2026-10-02T21:23:05.711Z",
+  "schedule": [
+    {"id":"e1","activity":"Demo","startDate":"2026-05-08","endDate":"2026-05-08","status":"complete"},
+    {"id":"e2","activity":"Permit","startDate":"2026-07-08","endDate":"2026-07-08","status":"complete"},
+    {"id":"e3","activity":"Framing","startDate":"2026-07-01","endDate":"2026-07-24","status":"complete"},
+    {"id":"e4","activity":"Exterior Metal","startDate":"2026-07-25","endDate":"2026-07-25","status":"complete"},
+    {"id":"e5","activity":"Brick Work","startDate":"2026-07-29","endDate":"2026-07-29","status":"complete"},
+    {"id":"e6","activity":"HVAC","startDate":"2026-08-04","endDate":"2026-08-15","status":"complete"},
+    {"id":"e7","activity":"Plumbing","startDate":"2026-07-22","endDate":"2026-08-14","status":"complete"},
+    {"id":"e8","activity":"Electrical","startDate":"2026-08-14","endDate":"2026-08-21","status":"complete"},
+    {"id":"e9","activity":"Exterior Paint","startDate":"2026-08-18","endDate":"2026-08-29","status":"complete"},
+    {"id":"e10","activity":"Insulation","startDate":"2026-08-26","endDate":"2026-09-05","status":"complete"},
+    {"id":"e11","activity":"Windows","startDate":"2026-08-25","endDate":"2026-09-02","status":"complete"},
+    {"id":"e12","activity":"Drywall / Mud","startDate":"2026-09-10","endDate":"2026-09-18","status":"complete"},
+    {"id":"e13","activity":"Paint","startDate":"2026-09-23","endDate":"2026-11-22","status":"in-progress"},
+    {"id":"e14","activity":"Flooring","startDate":"2026-11-26","endDate":"2026-11-30","status":"upcoming"},
+    {"id":"e15","activity":"Trim & Doors","startDate":"2026-12-01","endDate":"2026-12-04","status":"upcoming"},
+    {"id":"e16","activity":"Kitchens","startDate":"2026-12-08","endDate":"2026-12-25","status":"upcoming"},
+    {"id":"e17","activity":"Bathrooms","startDate":"2026-12-29","endDate":"2027-01-07","status":"upcoming"},
+    {"id":"e18","activity":"Decks & Porch","startDate":"2027-01-11","endDate":"2027-02-05","status":"upcoming"},
+    {"id":"e19","activity":"Walkway & Grading","startDate":"2027-02-09","endDate":"2027-02-23","status":"upcoming"},
+    {"id":"e20","activity":"Final Finishing","startDate":"2027-02-27","endDate":"2027-03-14","status":"upcoming"},
+    {"id":"e21","activity":"Inspection / Deficiencies","startDate":"2027-03-19","endDate":"2027-04-06","status":"upcoming"},
+    {"id":"e22","activity":"Occupancy","startDate":"2027-04-12","endDate":"2027-04-13","status":"upcoming"}
+  ]
+}
