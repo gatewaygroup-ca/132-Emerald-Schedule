@@ -31,7 +31,7 @@ export default async function AdminPage() {
 
       {storageMode() === "local" && (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Local mode: changes are saved to <code>data/projects.local.json</code>. Configure Supabase before deploying.
+          Local mode: changes are saved to <code>data/projects.json</code> on this computer. On Vercel, set <code>GITHUB_TOKEN</code> so changes are saved to the GitHub repo (see SETUP.md).
         </p>
       )}
 
