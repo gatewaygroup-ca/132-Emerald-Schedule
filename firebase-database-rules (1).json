@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "projects": {
+      "$projectId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+
+    "project_registry": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}
