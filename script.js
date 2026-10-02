@@ -177,12 +177,19 @@ function listenCollection(path, stateKey, sanitize) {
   REFS[path] = { ref: r, cb };
 }
 
+// Central place every write failure surfaces -- a silent failed save (e.g.
+// permission denied, or a dropped connection) looks exactly like "my data
+// got deleted" to the user, so every write must report errors visibly.
+function reportSaveError(err) {
+  alert("Could not save: " + (err && err.message ? err.message : err) + "\n\nYour changes were NOT saved. Please try again, and make sure you're still logged in as Admin.");
+}
+
 function saveCollectionItem(path, item) {
   const id = item.id || uid(path);
   const copy = Object.assign({}, item); delete copy.id;
-  return ref(`${path}/${id}`).set(copy).then(() => id);
+  return ref(`${path}/${id}`).set(copy).then(() => id).catch(err => { reportSaveError(err); throw err; });
 }
-function deleteCollectionItem(path, id) { return ref(`${path}/${id}`).remove(); }
+function deleteCollectionItem(path, id) { return ref(`${path}/${id}`).remove().catch(err => { reportSaveError(err); throw err; }); }
 
 function firebaseListenProject() {
   if (!CURRENT_PROJECT_ID) { renderAll(); return; }
@@ -469,8 +476,13 @@ function renderProjectInfoForm() {
 }
 function saveProjectInfo() {
   const updates = {};
-  document.querySelectorAll("#projectInfoForm [data-field]").forEach(inp => { updates[inp.dataset.field] = inp.value; STATE.settings[inp.dataset.field] = inp.value; });
-  ref("settings").update(updates).then(() => logActivity("Project edited", "Project information updated."));
+  document.querySelectorAll("#projectInfoForm [data-field]").forEach(inp => { updates[inp.dataset.field] = inp.value; });
+  const btn = document.getElementById("btnSaveProjectInfo");
+  ref("settings").update(updates).then(() => {
+    Object.assign(STATE.settings, updates);
+    logActivity("Project edited", "Project information updated.");
+    if (btn) { const orig = "Save"; btn.textContent = "Saved ✓"; setTimeout(() => { btn.textContent = orig; }, 1500); }
+  }).catch(err => reportSaveError(err));
 }
 
 const CLIENT_FIELDS = [
@@ -485,7 +497,11 @@ function renderClientForm() {
 function saveClientInfo() {
   const updates = {};
   document.querySelectorAll("#clientForm [data-field]").forEach(inp => { updates[inp.dataset.field] = inp.value; });
-  ref("client").set(Object.assign({}, STATE.client, updates)).then(() => logActivity("Project edited", "Client information updated."));
+  const btn = document.getElementById("btnSaveClient");
+  ref("client").set(Object.assign({}, STATE.client, updates)).then(() => {
+    logActivity("Project edited", "Client information updated.");
+    if (btn) { const orig = "Save"; btn.textContent = "Saved ✓"; setTimeout(() => { btn.textContent = orig; }, 1500); }
+  }).catch(err => reportSaveError(err));
 }
 
 /* ---------- Milestones ---------- */
@@ -542,7 +558,7 @@ function renderHolidays() {
   const el = document.getElementById("holidaysList"); if (!el) return;
   el.innerHTML = (STATE.holidays || []).map((h, i) => `<div>${h.date} — ${escapeHtml(h.name)} <button data-del-holiday="${i}">x</button></div>`).join("") || `<p class="muted">No holidays configured.</p>`;
   el.querySelectorAll("[data-del-holiday]").forEach(b => b.onclick = () => {
-    const arr = STATE.holidays.slice(); arr.splice(Number(b.dataset.delHoliday), 1); ref("holidays").set(arr);
+    const arr = STATE.holidays.slice(); arr.splice(Number(b.dataset.delHoliday), 1); ref("holidays").set(arr).catch(err => reportSaveError(err));
   });
 }
 
@@ -1156,12 +1172,12 @@ function init() {
     const date = document.getElementById("newHolidayDate").value, name = document.getElementById("newHolidayName").value;
     if (!date) return;
     const arr = (STATE.holidays || []).concat([{ date, name }]);
-    ref("holidays").set(arr);
+    ref("holidays").set(arr).catch(err => reportSaveError(err));
   };
   document.getElementById("btnAddTrade").onclick = () => openTradeModal(null);
   document.getElementById("btnAddSpec").onclick = () => openSpecModal(null);
   document.getElementById("btnAddBudgetCategory").onclick = () => openBudgetCategoryModal(null);
-  document.getElementById("budgetBasisSelect").onchange = (e) => ref("settings/actualExpenseBasis").set(e.target.value).then(() => logActivity("Budget changed", "Actual Expense Basis → " + e.target.value));
+  document.getElementById("budgetBasisSelect").onchange = (e) => ref("settings/actualExpenseBasis").set(e.target.value).then(() => logActivity("Budget changed", "Actual Expense Basis → " + e.target.value)).catch(err => reportSaveError(err));
   document.getElementById("btnAddInvoice").onclick = () => openInvoiceModal(null);
   document.getElementById("btnAddChangeOrder").onclick = () => openChangeOrderModal(null);
   document.getElementById("btnAddSiteRental").onclick = () => openSiteRentalModal(null);
@@ -1175,7 +1191,7 @@ function init() {
   document.getElementById("btnImportCSV").onclick = () => document.getElementById("csvFileInput").click();
   document.getElementById("csvFileInput").onchange = (e) => { if (e.target.files[0]) importCSVFile(e.target.files[0]); e.target.value = ""; };
   document.getElementById("btnSaveFinSettings").onclick = () => {
-    ref("settings").update({ currency: document.getElementById("setCurrency").value, taxLabel: document.getElementById("setTaxLabel").value, taxRate: Number(document.getElementById("setTaxRate").value) || 0 });
+    ref("settings").update({ currency: document.getElementById("setCurrency").value, taxLabel: document.getElementById("setTaxLabel").value, taxRate: Number(document.getElementById("setTaxRate").value) || 0 }).catch(err => reportSaveError(err));
   };
 
   const switcherEl = document.getElementById("projectSwitcher"); if (switcherEl) switcherEl.onchange = (e) => switchProject(e.target.value);
