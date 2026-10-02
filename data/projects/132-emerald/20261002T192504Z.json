@@ -1,8 +1,165 @@
-{
-  "slug": "132-emerald",
-  "projectName": "McGivney",
-  "propertyAddress": "132 Emerald St SHamilton, ON L8N 2V5, Canada",
-  "updatedAt": "2026-10-02T19:25:04.150Z",
-  "schedule": [
-  ]
-}
+[
+  {
+    "slug": "132-emerald",
+    "projectName": "McGivney",
+    "propertyAddress": "132 Emerald St SHamilton, ON L8N 2V5, Canada",
+    "schedule": [
+      {
+        "id": "lnl4picjve1f",
+        "activity": "Brick Work",
+        "startDate": "2026-04-20",
+        "endDate": "2026-04-24",
+        "status": "complete"
+      },
+      {
+        "id": "s4ldtof7vezj",
+        "activity": "Exterior Metal",
+        "startDate": "2026-05-01",
+        "endDate": "2026-05-01",
+        "status": "complete"
+      },
+      {
+        "id": "uwuf2epnwgot",
+        "activity": "Demo",
+        "startDate": "2026-05-08",
+        "endDate": "2026-05-08",
+        "status": "complete"
+      },
+      {
+        "id": "n5rvd4sjwv0x",
+        "activity": "Framing",
+        "startDate": "2026-07-01",
+        "endDate": "2026-07-24",
+        "status": "complete"
+      },
+      {
+        "id": "qpbk05kucx3f",
+        "activity": "Plumbing",
+        "startDate": "2026-07-22",
+        "endDate": "2026-08-14",
+        "status": "complete"
+      },
+      {
+        "id": "1gdadi2ydbuh",
+        "activity": "Exterior Paint",
+        "startDate": "2026-07-27",
+        "endDate": "2026-09-07",
+        "status": "complete"
+      },
+      {
+        "id": "8tqdpv6pdqpo",
+        "activity": "HVAC",
+        "startDate": "2026-08-04",
+        "endDate": "2026-08-14",
+        "status": "complete"
+      },
+      {
+        "id": "c18qcb68e5jc",
+        "activity": "Electrical",
+        "startDate": "2026-08-14",
+        "endDate": "2026-08-21",
+        "status": "complete"
+      },
+      {
+        "id": "8lhm88qqejxs",
+        "activity": "Insulation",
+        "startDate": "2026-08-21",
+        "endDate": "2026-08-31",
+        "status": "complete"
+      },
+      {
+        "id": "71n9m76rfgw3",
+        "activity": "Windows",
+        "startDate": "2026-08-25",
+        "endDate": "2026-09-02",
+        "status": "complete"
+      },
+      {
+        "id": "ef50ufuzfxp0",
+        "activity": "Drywall / Mud",
+        "startDate": "2026-08-26",
+        "endDate": "2026-09-03",
+        "status": "complete"
+      },
+      {
+        "id": "ha1k6fvjgm2y",
+        "activity": "Interior Paint",
+        "startDate": "2026-09-17",
+        "endDate": "2026-11-19",
+        "status": "in-progress"
+      }
+    ],
+    "updatedAt": "2026-10-02T19:46:09.939Z"
+  },
+  {
+    "slug": "138-paling",
+    "projectName": "",
+    "propertyAddress": "138 Paling Road, Hamilton, ON",
+    "updatedAt": "2026-10-02T12:00:00.000Z",
+    "schedule": [
+      {
+        "id": "a1",
+        "activity": "Excavation",
+        "startDate": "2026-07-10",
+        "endDate": "2026-07-15",
+        "status": "complete"
+      },
+      {
+        "id": "a2",
+        "activity": "Foundation",
+        "startDate": "2026-07-16",
+        "endDate": "2026-07-22",
+        "status": "complete"
+      },
+      {
+        "id": "a3",
+        "activity": "Framing",
+        "startDate": "2026-07-23",
+        "endDate": "2026-08-14",
+        "status": "complete"
+      },
+      {
+        "id": "a4",
+        "activity": "Roofing",
+        "startDate": "2026-08-15",
+        "endDate": "2026-08-18",
+        "status": "complete"
+      },
+      {
+        "id": "a5",
+        "activity": "HVAC",
+        "startDate": "2026-08-19",
+        "endDate": "2026-08-31",
+        "status": "complete"
+      },
+      {
+        "id": "a6",
+        "activity": "Plumbing",
+        "startDate": "2026-09-01",
+        "endDate": "2026-09-14",
+        "status": "complete"
+      },
+      {
+        "id": "a7",
+        "activity": "Electrical",
+        "startDate": "2026-09-15",
+        "endDate": "2026-10-06",
+        "status": "in-progress"
+      },
+      {
+        "id": "a8",
+        "activity": "Insulation",
+        "startDate": "2026-10-07",
+        "endDate": "2026-10-14",
+        "status": "delayed"
+      },
+      {
+        "id": "a9",
+        "activity": "Drywall",
+        "startDate": "2026-10-15",
+        "endDate": "2026-11-04",
+        "status": "upcoming"
+      }
+    ]
+  }
+]
