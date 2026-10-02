@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { saveSchedule } from "@/app/admin/actions";
 import ScheduleView from "@/components/ScheduleView";
 import { addDays, durationDays, formatDuration, isIsoDate, localToday, fromDay } from "@/lib/dates";
-import { newId } from "@/lib/project";
+import { newId, validateProject } from "@/lib/project";
 import { STATUSES, STATUS_LABELS, type Project, type ScheduleItem, type Status } from "@/lib/types";
 
 const input =
@@ -13,12 +13,25 @@ const input =
 const iconBtn =
   "flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30";
 
-export default function ScheduleEditor({ initial }: { initial: Project }) {
+type Publish = { editUrl: string; allProjects: Project[] };
+
+export default function ScheduleEditor({
+  initial,
+  publish,
+  isNew = false,
+}: {
+  initial: Project;
+  /** Set when the server can't save: changes are published by committing on github.com. */
+  publish?: Publish;
+  isNew?: boolean;
+}) {
   const [projectName, setProjectName] = useState(initial.projectName);
   const [propertyAddress, setPropertyAddress] = useState(initial.propertyAddress);
   const [schedule, setSchedule] = useState<ScheduleItem[]>(initial.schedule);
   const [updatedAt, setUpdatedAt] = useState(initial.updatedAt);
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(isNew);
+  const [publishJson, setPublishJson] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [savedMsg, setSavedMsg] = useState("");
   const [saving, startSaving] = useTransition();
@@ -34,6 +47,7 @@ export default function ScheduleEditor({ initial }: { initial: Project }) {
   function touch() {
     setDirty(true);
     setSavedMsg("");
+    setPublishJson(null);
   }
 
   function updateItem(id: string, patch: Partial<ScheduleItem>) {
@@ -70,8 +84,34 @@ export default function ScheduleEditor({ initial }: { initial: Project }) {
     touch();
   }
 
+  function copy(text: string) {
+    navigator.clipboard?.writeText(text).then(
+      () => setCopied(true),
+      () => setCopied(false),
+    );
+  }
+
+  function preparePublish(p: Publish) {
+    const result = validateProject({ projectName, propertyAddress, schedule });
+    if (!result.ok) {
+      setErrors(result.errors);
+      return;
+    }
+    const updated: Project = { slug: initial.slug, ...result.project, updatedAt: new Date().toISOString() };
+    const exists = p.allProjects.some((x) => x.slug === initial.slug);
+    const all = exists
+      ? p.allProjects.map((x) => (x.slug === initial.slug ? updated : x))
+      : [...p.allProjects, updated];
+    const json = JSON.stringify(all, null, 2) + "\n";
+    setPublishJson(json);
+    setCopied(false);
+    copy(json);
+    setDirty(false);
+  }
+
   function save() {
     setErrors([]);
+    if (publish) return preparePublish(publish);
     startSaving(async () => {
       const res = await saveSchedule(initial.slug, { projectName, propertyAddress, schedule });
       if (res.ok) {
@@ -99,7 +139,7 @@ export default function ScheduleEditor({ initial }: { initial: Project }) {
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <span className="text-sm text-slate-500" aria-live="polite">
-              {saving ? "Saving…" : dirty ? "Unsaved changes" : savedMsg}
+              {saving ? "Saving…" : dirty ? "Unsaved changes" : publishJson ? "Ready to publish ↓" : savedMsg}
             </span>
             <button
               type="button"
@@ -107,7 +147,7 @@ export default function ScheduleEditor({ initial }: { initial: Project }) {
               disabled={saving || !dirty}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
-              Save changes
+              {publish ? "Publish on GitHub" : "Save changes"}
             </button>
           </div>
         </div>
@@ -265,9 +305,41 @@ export default function ScheduleEditor({ initial }: { initial: Project }) {
               disabled={saving || !dirty}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
-              Save changes
+              {publish ? "Publish on GitHub" : "Save changes"}
             </button>
           </div>
+
+          {publish && publishJson && (
+            <div className="mt-6 rounded-md border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800">
+              <p className="font-semibold text-slate-900">Publish this update on GitHub</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5">
+                <li>
+                  {copied ? "The update is copied." : "Copy the update:"}{" "}
+                  <button type="button" onClick={() => copy(publishJson)} className="font-medium underline">
+                    {copied ? "Copy again" : "Copy update"}
+                  </button>
+                </li>
+                <li>
+                  <a href={publish.editUrl} target="_blank" rel="noreferrer" className="font-medium underline">
+                    Open the schedule file on GitHub ↗
+                  </a>{" "}
+                  (sign in if asked).
+                </li>
+                <li>Click in the file, select all (Ctrl/Cmd + A), and paste (Ctrl/Cmd + V).</li>
+                <li>
+                  Click <strong>Commit changes…</strong>, then <strong>Commit changes</strong> again.
+                </li>
+              </ol>
+              <p className="mt-2 text-slate-600">The client page updates about a minute after you commit.</p>
+              <textarea
+                readOnly
+                value={publishJson}
+                onFocus={(e) => e.currentTarget.select()}
+                className="mt-3 h-28 w-full rounded-md border border-slate-300 bg-white p-2 font-mono text-xs text-slate-700"
+                aria-label="Update to paste into GitHub"
+              />
+            </div>
+          )}
         </section>
 
         <section className="mt-14">

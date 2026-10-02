@@ -9,10 +9,15 @@ A simple, client-facing construction schedule with a Gantt chart and a password-
 
 All schedules live in one file in this repo: **`data/projects.json`**.
 
-- **Locally:** saving in the admin editor writes that file directly.
-- **On Vercel:** the server can't write files, so each save is committed to `data/projects.json` in this
-  GitHub repo through the GitHub API. Every change is in the repo's commit history.
-  `vercel.json` skips rebuilding when only this file changed, so saves don't trigger deploys.
+- **Live site (default, no setup):** open `/admin`, pick a project, and edit it. Click **Publish on GitHub**:
+  the update is copied for you. Open the file on GitHub, select all, paste, and click **Commit changes**.
+  Vercel redeploys automatically and the client page updates in about a minute.
+  Only people with write access to this GitHub repo can publish.
+- **Locally:** `npm run dev` with `ADMIN_PASSWORD` set; saving writes `data/projects.json` directly.
+- **Optional one-click saving on Vercel:** add `ADMIN_PASSWORD`, `SESSION_SECRET` and a `GITHUB_TOKEN`
+  (fine-grained token, this repo only, Contents: Read and write; create one at
+  https://github.com/settings/personal-access-tokens/new). The Save button then commits to GitHub for you,
+  and `/admin` asks for the password.
 
 No Supabase, Firebase, or other external database is used.
 
@@ -24,28 +29,14 @@ cp .env.example .env.local   # then set ADMIN_PASSWORD
 npm run dev                  # http://localhost:3000/project/138-paling
 ```
 
-## Deploy (GitHub + Vercel)
+## Deploy
 
-1. **GitHub token:** go to GitHub → Settings → Developer settings → **Fine-grained tokens** → Generate new token.
-   For **Repository access**, choose *Only select repositories* and pick this repo.
-   Under **Permissions**, set **Contents** to *Read and write*. Copy the token.
-2. **Vercel:** go to **Add New → Project** and import this repo (Next.js is detected automatically). Add these environment variables:
-
-   | Variable | Value |
-   |---|---|
-   | `ADMIN_PASSWORD` | your admin password |
-   | `SESSION_SECRET` | a long random string (`openssl rand -hex 32`) |
-   | `GITHUB_TOKEN` | the token from step 1 |
-   | `GITHUB_BRANCH` | `main` (the branch Vercel deploys) |
-
-   `GITHUB_REPO` is detected automatically on Vercel.
-3. Deploy, then open `https://<your-site>/project/138-paling`.
-
-The token is used only on the server and never reaches the browser.
+The repo is connected to Vercel. Every push to `main` deploys. `vercel.json` sets the framework to Next.js.
 
 ## Adding another project
 
-Go to `/admin` → **New project**, enter the address and an optional link name (e.g. `52-king`), then send the client
+Go to `/admin` → **New project**, enter the address and an optional link name (e.g. `52-king`), add activities and
+publish, then send the client
 `https://<your-site>/project/52-king`.
 
 ## Data shape

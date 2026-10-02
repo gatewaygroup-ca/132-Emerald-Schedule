@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { checkPassword, endSession, isAdmin, startSession } from "@/lib/auth";
 import { slugify, validateProject } from "@/lib/project";
-import { deleteProject, getProject, saveProject } from "@/lib/store";
+import { canWrite, deleteProject, getProject, saveProject } from "@/lib/store";
 
 export type FormState = { error?: string } | undefined;
 
@@ -35,7 +35,13 @@ export async function createProject(_prev: FormState, formData: FormData): Promi
 
   if (!propertyAddress) return { error: "Property address is required." };
   if (!slug) return { error: "Please enter a link name (letters and numbers)." };
+  if (slug === "draft") return { error: "Please choose a different link name." };
   if (await getProject(slug)) return { error: `A project with the link “${slug}” already exists.` };
+
+  if (!canWrite()) {
+    const q = new URLSearchParams({ slug, address: propertyAddress, name: projectName });
+    redirect(`/admin/draft?${q}`);
+  }
 
   await saveProject({
     slug,
@@ -49,6 +55,7 @@ export async function createProject(_prev: FormState, formData: FormData): Promi
 
 export async function removeProject(formData: FormData): Promise<void> {
   await requireAdmin();
+  if (!canWrite()) throw new Error("Delete the project from data/projects.json on GitHub.");
   await deleteProject(String(formData.get("slug") ?? ""));
   redirect("/admin");
 }
@@ -57,6 +64,7 @@ export type SaveResult = { ok: true; updatedAt: string } | { ok: false; errors: 
 
 export async function saveSchedule(slug: string, data: unknown): Promise<SaveResult> {
   if (!(await isAdmin())) return { ok: false, errors: ["Your login has expired. Refresh the page and sign in again."] };
+  if (!canWrite()) return { ok: false, errors: ["Use “Publish on GitHub” to save changes."] };
   if (!(await getProject(slug))) return { ok: false, errors: ["This project no longer exists."] };
 
   const result = validateProject(data);

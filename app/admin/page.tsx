@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DeleteProjectButton, LoginForm, NewProjectForm } from "@/components/admin/forms";
-import { isAdmin } from "@/lib/auth";
-import { listProjects, storageMode } from "@/lib/store";
+import { isAdmin, loginRequired } from "@/lib/auth";
+import { canWrite, listProjects, storageMode } from "@/lib/store";
 import { logout } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -24,14 +24,22 @@ export default async function AdminPage() {
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-8">
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <h1 className="text-xl font-semibold text-slate-900">Project schedules</h1>
-        <form action={logout}>
-          <button className="text-sm text-slate-500 hover:text-slate-900">Sign out</button>
-        </form>
+        {loginRequired() && (
+          <form action={logout}>
+            <button className="text-sm text-slate-500 hover:text-slate-900">Sign out</button>
+          </form>
+        )}
       </div>
 
       {storageMode() === "local" && (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Local mode: changes are saved to <code>data/projects.json</code> on this computer. On Vercel, set <code>GITHUB_TOKEN</code> so changes are saved to the GitHub repo (see SETUP.md).
+          Local mode: changes are saved to <code>data/projects.json</code> on this computer.
+        </p>
+      )}
+      {storageMode() === "publish" && (
+        <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          Edit a schedule, then click <strong>Publish on GitHub</strong>. You&apos;ll paste the update into GitHub and
+          commit it; the live site updates about a minute later.
         </p>
       )}
 
@@ -55,7 +63,7 @@ export default async function AdminPage() {
               >
                 Edit schedule
               </Link>
-              <DeleteProjectButton slug={p.slug} address={p.propertyAddress} />
+              {canWrite() && <DeleteProjectButton slug={p.slug} address={p.propertyAddress} />}
             </div>
           </li>
         ))}

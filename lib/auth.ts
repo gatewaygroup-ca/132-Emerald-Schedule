@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { canWrite } from "./store";
 
 const COOKIE = "schedule_admin";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -44,7 +45,16 @@ export async function endSession(): Promise<void> {
   (await cookies()).delete(COOKIE);
 }
 
+/**
+ * In "publish" mode (no server-side saving) the editor is open: it can only prepare
+ * changes, and publishing them requires signing in to GitHub with write access.
+ */
+export function loginRequired(): boolean {
+  return canWrite() || Boolean(process.env.ADMIN_PASSWORD);
+}
+
 export async function isAdmin(): Promise<boolean> {
+  if (!loginRequired()) return true;
   if (!process.env.ADMIN_PASSWORD) return false;
   const value = (await cookies()).get(COOKIE)?.value;
   if (!value) return false;

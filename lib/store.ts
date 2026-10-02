@@ -26,8 +26,23 @@ const GH_BRANCH = process.env.GITHUB_BRANCH || process.env.VERCEL_GIT_COMMIT_REF
 const GH_API = (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/+$/, "");
 const useGitHub = Boolean(GH_TOKEN && GH_REPO);
 
-export function storageMode(): "github" | "local" {
-  return useGitHub ? "github" : "local";
+export function storageMode(): "github" | "local" | "publish" {
+  if (useGitHub) return "github";
+  // On Vercel without a token the disk is read-only: changes are published by
+  // committing data/projects.json on github.com (the editor walks you through it).
+  return process.env.VERCEL ? "publish" : "local";
+}
+
+/** Can the server save changes itself? If not, the editor uses "Publish on GitHub". */
+export function canWrite(): boolean {
+  return storageMode() !== "publish";
+}
+
+/** github.com page for editing the data file in the browser. */
+export function githubEditUrl(): string {
+  const repo = GH_REPO || "gatewaygroup-ca/132-Emerald-Schedule";
+  const branch = process.env.GITHUB_BRANCH || "main";
+  return `https://github.com/${repo}/edit/${branch}/${DATA_PATH}`;
 }
 
 /* ---------------- GitHub (contents API, no extra dependency) ---------------- */
