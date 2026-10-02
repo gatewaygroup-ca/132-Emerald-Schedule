@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DeleteProjectButton, LoginForm, NewProjectForm } from "@/components/admin/forms";
 import { isAdmin, loginRequired } from "@/lib/auth";
-import { canWrite, listProjects, storageMode } from "@/lib/store";
+import { canWrite, listProjects } from "@/lib/store";
 import { logout } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -31,15 +31,15 @@ export default async function AdminPage() {
         )}
       </div>
 
-      {storageMode() === "local" && (
+      {canWrite() && (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Local mode: changes are saved to <code>data/projects.json</code> on this computer.
+          Local mode: changes are saved to <code>data/projects</code> on this computer.
         </p>
       )}
-      {storageMode() === "publish" && (
+      {!canWrite() && (
         <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          Edit a schedule, then click <strong>Publish on GitHub</strong>. You&apos;ll paste the update into GitHub and
-          commit it; the live site updates about a minute later.
+          Edit a schedule (or create a new project), then click <strong>Publish on GitHub</strong>. GitHub opens with
+          the update filled in: click <strong>Commit changes</strong>. The live site updates about a minute later.
         </p>
       )}
 

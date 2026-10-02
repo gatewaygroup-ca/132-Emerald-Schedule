@@ -1,0 +1,17 @@
+{
+  "slug": "138-paling",
+  "projectName": "",
+  "propertyAddress": "138 Paling Road, Hamilton, ON",
+  "updatedAt": "2026-10-02T12:00:00.000Z",
+  "schedule": [
+    {"id":"a1","activity":"Excavation","startDate":"2026-07-10","endDate":"2026-07-15","status":"complete"},
+    {"id":"a2","activity":"Foundation","startDate":"2026-07-16","endDate":"2026-07-22","status":"complete"},
+    {"id":"a3","activity":"Framing","startDate":"2026-07-23","endDate":"2026-08-14","status":"complete"},
+    {"id":"a4","activity":"Roofing","startDate":"2026-08-15","endDate":"2026-08-18","status":"complete"},
+    {"id":"a5","activity":"HVAC","startDate":"2026-08-19","endDate":"2026-08-31","status":"complete"},
+    {"id":"a6","activity":"Plumbing","startDate":"2026-09-01","endDate":"2026-09-14","status":"complete"},
+    {"id":"a7","activity":"Electrical","startDate":"2026-09-15","endDate":"2026-10-06","status":"in-progress"},
+    {"id":"a8","activity":"Insulation","startDate":"2026-10-07","endDate":"2026-10-14","status":"delayed"},
+    {"id":"a9","activity":"Drywall","startDate":"2026-10-15","endDate":"2026-11-04","status":"upcoming"}
+  ]
+}
