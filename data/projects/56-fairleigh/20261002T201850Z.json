@@ -1,0 +1,13 @@
+{
+  "slug": "56-fairleigh",
+  "projectName": "",
+  "propertyAddress": "56 Fairleigh, Hamilton, ON",
+  "updatedAt": "2026-10-02T20:18:50.014Z",
+  "schedule": [
+    {"id":"f1","activity":"Brick Work","startDate":"2026-04-17","endDate":"2026-04-17","status":"complete"},
+    {"id":"f2","activity":"Exterior Metal","startDate":"2026-05-05","endDate":"2026-05-05","status":"complete"},
+    {"id":"f3","activity":"Framing","startDate":"2026-07-27","endDate":"2026-10-19","status":"complete"},
+    {"id":"f4","activity":"Exterior Paint","startDate":"2026-08-10","endDate":"2026-08-26","status":"complete"},
+    {"id":"f5","activity":"Waterproofing","startDate":"2026-09-14","endDate":"2026-09-18","status":"complete"}
+  ]
+}
