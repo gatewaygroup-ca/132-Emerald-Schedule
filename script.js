@@ -39,6 +39,7 @@ const STATE = {
   activity: [],
   activityPage: 1,
   statusFilter: "All",
+  ganttZoom: "fit",
   openId: null,
   openKind: null,
   lightbox: { images: [], index: 0 },
@@ -67,6 +68,13 @@ function addBusinessDays(start, days) {
   if (!isBusinessDay(d)) remaining++; // if start itself isn't a business day, nudge forward below
   while (!isBusinessDay(d)) d.setDate(d.getDate() + 1);
   while (remaining > 0) { d.setDate(d.getDate() + 1); if (isBusinessDay(d)) remaining--; }
+  return d;
+}
+function subtractBusinessDays(finish, days) {
+  let d = new Date(finish.getTime());
+  while (!isBusinessDay(d)) d.setDate(d.getDate() - 1);
+  let remaining = Math.max(0, days - 1);
+  while (remaining > 0) { d.setDate(d.getDate() - 1); if (isBusinessDay(d)) remaining--; }
   return d;
 }
 function calculateBusinessDays(start, finish) {
@@ -355,7 +363,15 @@ function duplicateProject(sourceId, newName, copyOptions) {
 }
 
 /* ---------- Rendering: shell ---------- */
+function viewerCanSee(name) {
+  if (USER_ROLE === "admin") return true;
+  if (name === "settings" || name === "activity") return false;
+  if (FINANCIAL_SECTIONS.includes(name) && !STATE.settings.showFinancialsToClients) return false;
+  return true;
+}
+const FINANCIAL_SECTIONS = ["budget", "financials", "invoices", "payments", "changeOrders", "siteRentals"];
 function showSection(name) {
+  if (!viewerCanSee(name)) name = "overview";
   window.__activeSection = name;
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.section === name));
   const map = {
@@ -368,6 +384,7 @@ function showSection(name) {
   document.querySelectorAll(".content > section").forEach(s => s.classList.add("hidden"));
   const target = document.getElementById(map[name] || "sectionOverview");
   if (target) target.classList.remove("hidden");
+  if (name === "schedule" && CURRENT_PROJECT_ID) renderGantt(); // "fit" zoom needs the panel visible to measure
 }
 
 function renderAll() {
@@ -377,6 +394,7 @@ function renderAll() {
   renderProjectInfoForm();
   renderClientForm();
   renderMilestonesTable();
+  renderStatusFilters();
   renderGantt();
   renderHolidays();
   renderTrades();
@@ -394,17 +412,21 @@ function renderAll() {
   applyRoleUI();
 }
 
+/* Viewer vs admin presentation. Everything editable carries the
+   "admin-only" class (or lives in .row-actions), and CSS hides it
+   for viewers via the body classes below -- so freshly re-rendered
+   rows are covered automatically. Real enforcement is still the
+   Firebase rules (writes require a signed-in user). */
 function applyRoleUI() {
   const isAdmin = USER_ROLE === "admin";
+  document.body.classList.toggle("is-admin", isAdmin);
+  document.body.classList.toggle("is-viewer", !isAdmin);
+  document.body.classList.toggle("hide-financials", !isAdmin && !STATE.settings.showFinancialsToClients);
   document.getElementById("btnLogin").style.display = isAdmin ? "none" : "";
   document.getElementById("btnLogout").style.display = isAdmin ? "" : "none";
-  document.querySelectorAll("[data-admin-only]").forEach(el => el.style.display = isAdmin ? "" : "none");
-  // Never disable the login modal's own buttons -- a signed-out visitor
-  // must always be able to open and submit the login form.
-  document.querySelectorAll(".btn-primary, .row-actions button").forEach(el => {
-    if (el.id === "btnSubmitLogin" || el.closest("#loginModalOverlay")) return;
-    if (!isAdmin) el.setAttribute("disabled", "disabled"); else el.removeAttribute("disabled");
-  });
+  document.querySelectorAll("#projectInfoForm input, #projectInfoForm textarea").forEach(el => { el.readOnly = !isAdmin; });
+  const active = window.__activeSection || "overview";
+  if (!viewerCanSee(active) && !document.getElementById("sectionOnboarding").offsetParent) showSection("overview");
 }
 
 function renderTopbar() {
@@ -453,12 +475,37 @@ function renderDashboard() {
   document.getElementById("mOnTrack").textContent = STATE.milestones.length ? fmtPct(getOnTrackScore(schedule)) : "0%";
   document.getElementById("mScheduleStatus").textContent = STATE.milestones.length ? (STATE.settings.status || "Planning") : "Not started";
 
+  const projected = getProjectedCompletion(schedule);
+  document.getElementById("mProjected").textContent = projected ? fmtDateLong(projected) : "—";
+  renderGlance(schedule);
+
   const totals = financialTotals();
   document.getElementById("mBudget").textContent = fmtMoney(totals.totalBudget);
   document.getElementById("mCommitted").textContent = fmtMoney(totals.committed);
   document.getElementById("mInvoiced").textContent = fmtMoney(totals.invoiced);
   document.getElementById("mPaid").textContent = fmtMoney(totals.paid);
   document.getElementById("mOutstanding").textContent = fmtMoney(totals.outstanding);
+}
+
+function fmtDateLong(d) { if (!d) return "—"; return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+
+function renderGlance(schedule) {
+  const el = document.getElementById("ovGlance"); if (!el) return;
+  if (!STATE.milestones.length) { el.innerHTML = `<p class="muted">The schedule hasn't been published yet.</p>`; return; }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const rows = sortedMilestones().map(m => Object.assign({ m }, schedule[m.id] || {}));
+  const current = rows.filter(r => r.m.status !== "Complete" && r.m.status !== "Cancelled" && r.start && r.start <= today);
+  const upcoming = rows.filter(r => r.m.status !== "Complete" && r.m.status !== "Cancelled" && r.start && r.start > today)
+    .sort((a, b) => a.start - b.start).slice(0, 5);
+  const item = r => `<div class="glance-row">
+      <span class="status-dot dot-${statusColor(r.m.status)}"></span>
+      <span class="glance-name">${escapeHtml(r.m.name)}</span>
+      <span class="glance-dates">${fmtDateShort(r.start)} – ${fmtDateShort(r.finish)}</span>
+      <span class="badge">${escapeHtml(r.m.status || "Not Started")}</span>
+    </div>`;
+  el.innerHTML = `
+    <div class="glance-col"><h3>Happening now</h3>${current.map(item).join("") || '<p class="muted">Nothing in progress.</p>'}</div>
+    <div class="glance-col"><h3>Coming up next</h3>${upcoming.map(item).join("") || '<p class="muted">Nothing scheduled.</p>'}</div>`;
 }
 
 /* ---------- Project Information / Client forms ---------- */
@@ -471,6 +518,7 @@ const PROJECT_INFO_FIELDS = [
 ];
 function renderProjectInfoForm() {
   const el = document.getElementById("projectInfoForm"); if (!el) return;
+  if (el.contains(document.activeElement)) return; // don't wipe what an admin is typing when live data arrives
   el.innerHTML = PROJECT_INFO_FIELDS.map(([key, label, type]) =>
     `<label>${label}<input data-field="${key}" type="${type || "text"}" value="${escapeAttr(STATE.settings[key] || "")}" /></label>`).join("");
 }
@@ -492,6 +540,7 @@ const CLIENT_FIELDS = [
 ];
 function renderClientForm() {
   const el = document.getElementById("clientForm"); if (!el) return;
+  if (el.contains(document.activeElement)) return;
   el.innerHTML = CLIENT_FIELDS.map(([key, label]) => `<label>${label}<input data-field="${key}" value="${escapeAttr(STATE.client[key] || "")}" /></label>`).join("");
 }
 function saveClientInfo() {
@@ -509,15 +558,18 @@ function renderMilestonesTable() {
   const tbody = document.getElementById("milestonesTableBody");
   document.getElementById("milestonesEmpty").classList.toggle("hidden", STATE.milestones.length > 0);
   const schedule = computeSchedule();
-  tbody.innerHTML = STATE.milestones.map(m => {
+  tbody.innerHTML = sortedMilestones().map((m, i) => {
     const s = schedule[m.id] || {};
     const tradeNames = STATE.trades.filter(t => (t.milestoneIds || []).includes(m.id)).map(t => t.name).join(", ");
-    return `<tr>
-      <td>${escapeHtml(m.name)}</td><td>${fmtDateShort(s.start)}</td><td>${fmtDateShort(s.finish)}</td>
-      <td>${m.duration}d</td><td>${escapeHtml(m.status)}</td><td>${m.progress || 0}%</td><td>${escapeHtml(tradeNames)}</td>
+    return `<tr data-view-milestone="${m.id}">
+      <td class="muted">${i + 1}</td>
+      <td>${escapeHtml(m.name)}</td><td>${fmtDateLong(s.start)}</td><td>${fmtDateLong(s.finish)}</td>
+      <td>${m.duration}d</td><td><span class="status-dot dot-${statusColor(m.status)}"></span>${escapeHtml(m.status)}</td>
+      <td><div class="progress"><div style="width:${Math.min(100, m.progress || 0)}%"></div></div>${m.progress || 0}%</td><td>${escapeHtml(tradeNames)}</td>
       <td class="row-actions"><button data-edit-milestone="${m.id}">Edit</button><button data-delete-milestone="${m.id}">Delete</button></td>
     </tr>`;
   }).join("");
+  tbody.querySelectorAll("[data-view-milestone]").forEach(tr => tr.onclick = (e) => { if (!e.target.closest(".row-actions")) openMilestoneFromSchedule(tr.dataset.viewMilestone); });
   tbody.querySelectorAll("[data-edit-milestone]").forEach(b => b.onclick = () => openMilestoneModal(b.dataset.editMilestone));
   tbody.querySelectorAll("[data-delete-milestone]").forEach(b => b.onclick = () => { if (confirm("Delete this milestone?")) deleteCollectionItem("milestones", b.dataset.deleteMilestone).then(() => logActivity("Milestone edited", "Milestone deleted.")); });
 }
@@ -549,7 +601,8 @@ function openMilestoneModal(id) {
       status: document.getElementById("mfStatus").value, progress: Number(document.getElementById("mfProgress").value) || 0,
       notes: document.getElementById("mfNotes").value,
     };
-    if (!item.id) item.order = STATE.milestones.length;
+    if (!item.id) item.order = STATE.milestones.reduce((mx, x) => Math.max(mx, (x.order || 0) + 1), 0);
+    else if (m.order != null) item.order = m.order; // set() replaces the record -- keep its position
     saveCollectionItem("milestones", item).then(() => { logActivity(id ? "Milestone edited" : "Milestone added", item.name); closeModal(); });
   };
 }
@@ -563,46 +616,123 @@ function renderHolidays() {
 }
 
 /* ---------- Gantt ---------- */
-function visibleMilestones() {
-  return STATE.milestones.filter(m => STATE.statusFilter === "All" || m.status === STATE.statusFilter).sort((a, b) => (a.order || 0) - (b.order || 0));
+function sortedMilestones() {
+  return STATE.milestones.slice().sort((a, b) => (a.order == null ? 1e9 : a.order) - (b.order == null ? 1e9 : b.order) || String(a.name).localeCompare(String(b.name)));
 }
+function visibleMilestones() {
+  return sortedMilestones().filter(m => STATE.statusFilter === "All" || m.status === STATE.statusFilter);
+}
+// Admins edit; viewers get a read-only detail card.
+function openMilestoneFromSchedule(id) {
+  if (USER_ROLE === "admin") { openMilestoneModal(id); return; }
+  const m = STATE.milestones.find(x => x.id === id); if (!m) return;
+  const s = computeSchedule()[id] || {};
+  const dep = m.dependsOn ? STATE.milestones.find(x => x.id === m.dependsOn) : null;
+  const tradeNames = STATE.trades.filter(t => (t.milestoneIds || []).includes(id)).map(t => t.name).join(", ");
+  const row = (label, val) => val ? `<div class="detail-row"><span>${label}</span><strong>${val}</strong></div>` : "";
+  document.getElementById("modalBody").innerHTML = `
+    <h2>${escapeHtml(m.name)}</h2>
+    <div class="detail-list">
+      ${row("Status", `<span class="status-dot dot-${statusColor(m.status)}"></span>${escapeHtml(m.status || "Not Started")}`)}
+      ${row("Start", fmtDateLong(s.start))}
+      ${row("Finish", fmtDateLong(s.finish))}
+      ${row("Duration", (m.duration || 1) + " business day" + ((m.duration || 1) === 1 ? "" : "s"))}
+      ${row("Progress", `${m.progress || 0}%`)}
+      ${row("Follows", dep ? escapeHtml(dep.name) : "")}
+      ${row("Trade(s)", escapeHtml(tradeNames))}
+    </div>
+    ${m.notes ? `<p class="detail-notes">${escapeHtml(m.notes)}</p>` : ""}
+    <div style="margin-top:12px;"><button class="btn" id="mvClose">Close</button></div>`;
+  openModal();
+  document.getElementById("mvClose").onclick = closeModal;
+}
+const GANTT_ZOOM = { fit: 0, day: 22, week: 8, month: 3 }; // px per calendar day; "fit" sizes to the screen
 function renderGantt() {
   const container = document.getElementById("ganttBody"); if (!container) return;
   container.innerHTML = "";
-  const projectStart = parseISO(STATE.settings.start) || new Date();
-  const target = parseISO(STATE.settings.targetCompletion) || new Date(projectStart.getTime() + 90 * 86400000);
   const schedule = computeSchedule();
   const list = visibleMilestones();
+  document.getElementById("ganttEmpty").classList.toggle("hidden", STATE.milestones.length > 0);
+  document.querySelector("#sectionSchedule .gantt-scroll").classList.toggle("hidden", !STATE.milestones.length);
+  renderScheduleMeta(schedule);
+  renderGanttLegend();
+
+  // Timeline spans the project start (or earliest milestone, whichever is
+  // first) to the later of target completion / last finish.
+  const starts = Object.values(schedule).map(s => s.start).filter(Boolean);
+  let projectStart = parseISO(STATE.settings.start) || (starts.length ? new Date(Math.min(...starts)) : new Date());
+  if (starts.length) projectStart = new Date(Math.min(projectStart, ...starts));
+  projectStart = new Date(projectStart.getFullYear(), projectStart.getMonth(), projectStart.getDate() - 3);
+  const target = parseISO(STATE.settings.targetCompletion) || new Date(projectStart.getTime() + 90 * 86400000);
   const lastFinish = getProjectedCompletion(schedule) || target;
   const spanEnd = new Date(Math.max(target.getTime(), lastFinish.getTime()));
   const totalDays = Math.max(30, Math.round((spanEnd - projectStart) / 86400000) + 15);
-  const PX = 8, LABEL_W = 230;
+  const LABEL_W = window.innerWidth < 640 ? 140 : 250;
+  const scrollW = document.querySelector("#sectionSchedule .gantt-scroll").clientWidth;
+  const PX = STATE.ganttZoom === "fit" ? (scrollW ? Math.max(1.5, (scrollW - LABEL_W - 2) / totalDays) : 8) : (GANTT_ZOOM[STATE.ganttZoom] || 8);
+  const dayOffset = d => Math.round((d - projectStart) / 86400000);
 
   const monthsRow = document.getElementById("ganttMonths");
   monthsRow.innerHTML = ""; monthsRow.style.width = (totalDays * PX) + "px"; monthsRow.style.marginLeft = LABEL_W + "px";
   let mCursor = new Date(projectStart.getFullYear(), projectStart.getMonth(), 1);
   while (mCursor <= spanEnd) {
-    const offset = Math.round((mCursor - projectStart) / 86400000);
-    if (offset >= 0) { const m = document.createElement("div"); m.className = "gantt-month"; m.style.left = (offset * PX) + "px"; m.textContent = mCursor.toLocaleDateString(undefined, { month: "short", year: "2-digit" }); monthsRow.appendChild(m); }
+    const offset = Math.max(0, dayOffset(mCursor));
+    const m = document.createElement("div"); m.className = "gantt-month"; m.style.left = (offset * PX) + "px";
+    const monthW = 30 * PX;
+    m.textContent = mCursor.toLocaleDateString(undefined, monthW >= 64 ? { month: "short", year: "numeric" } : monthW >= 30 ? { month: "short" } : { month: "narrow" });
+    monthsRow.appendChild(m);
     mCursor.setMonth(mCursor.getMonth() + 1);
   }
-  container.style.width = (totalDays * PX) + "px";
+  container.style.width = (LABEL_W + totalDays * PX) + "px";
 
-  list.forEach(m => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayOff = dayOffset(today);
+  const showToday = todayOff >= 0 && todayOff <= totalDays;
+  const targetDate = parseISO(STATE.settings.targetCompletion);
+
+  list.forEach((m, i) => {
     const sched = schedule[m.id]; if (!sched) return;
     const row = document.createElement("div"); row.className = "gantt-row";
     const label = document.createElement("div"); label.className = "gantt-label";
-    label.innerHTML = `<span class="gname">${escapeHtml(m.name)}</span><span class="gsub">${fmtDateShort(sched.start)} – ${fmtDateShort(sched.finish)} · ${m.duration}d</span>`;
-    label.style.width = LABEL_W + "px"; label.onclick = () => openMilestoneModal(m.id);
+    label.innerHTML = `<span class="gname" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</span><span class="gsub">${fmtDateShort(sched.start)} – ${fmtDateShort(sched.finish)} · ${m.duration}d · ${m.progress || 0}%</span>`;
+    label.style.width = LABEL_W + "px"; label.style.minWidth = LABEL_W + "px"; label.onclick = () => openMilestoneFromSchedule(m.id);
     row.appendChild(label);
     const lane = document.createElement("div"); lane.className = "gantt-lane"; lane.style.width = (totalDays * PX) + "px";
-    const off = Math.round((sched.start - projectStart) / 86400000);
+    if (showToday) { const t = document.createElement("div"); t.className = "gantt-today"; t.style.left = (todayOff * PX) + "px"; lane.appendChild(t); }
+    if (targetDate) { const t = document.createElement("div"); t.className = "gantt-target"; t.style.left = (dayOffset(targetDate) * PX) + "px"; lane.appendChild(t); }
+    const off = dayOffset(sched.start);
     const span = Math.round((sched.finish - sched.start) / 86400000) + 1;
     const bar = document.createElement("div"); bar.className = "gantt-bar bar-" + statusColor(m.status);
-    bar.style.left = (off * PX) + "px"; bar.style.width = Math.max(span * PX - 2, 6) + "px"; bar.onclick = () => openMilestoneModal(m.id);
+    bar.title = `${m.name}\n${fmtDateLong(sched.start)} – ${fmtDateLong(sched.finish)}\n${m.status || "Not Started"} · ${m.progress || 0}%`;
+    bar.style.left = (off * PX) + "px"; bar.style.width = Math.max(span * PX - 2, 6) + "px"; bar.onclick = () => openMilestoneFromSchedule(m.id);
     const fill = document.createElement("div"); fill.className = "gantt-bar-fill"; fill.style.width = (m.progress || 0) + "%";
     bar.appendChild(fill); lane.appendChild(bar); row.appendChild(lane); container.appendChild(row);
   });
+  if (STATE.milestones.length && !list.length) container.innerHTML = `<p class="muted" style="padding:14px;">No milestones with status "${escapeHtml(STATE.statusFilter)}".</p>`;
+}
+function renderScheduleMeta(schedule) {
+  const el = document.getElementById("scheduleMeta"); if (!el) return;
+  if (!STATE.milestones.length) { el.innerHTML = ""; return; }
+  const projected = getProjectedCompletion(schedule);
+  const starts = Object.values(schedule).map(s => s.start).filter(Boolean);
+  const first = starts.length ? new Date(Math.min(...starts)) : null;
+  const target = parseISO(STATE.settings.targetCompletion);
+  const done = STATE.milestones.filter(m => m.status === "Complete").length;
+  const item = (label, val, cls) => `<div class="meta-item"><span>${label}</span><strong class="${cls || ""}">${val}</strong></div>`;
+  let variance = "";
+  if (target && projected) {
+    const days = Math.round((projected - target) / 86400000);
+    variance = item("vs. Target", days > 0 ? `${days}d late` : days < 0 ? `${-days}d early` : "On target", days > 0 ? "red" : "green");
+  }
+  el.innerHTML = item("Start", fmtDateLong(first)) + item("Projected Completion", fmtDateLong(projected)) +
+    (target ? item("Target Completion", fmtDateLong(target)) : "") + variance +
+    item("Milestones", `${done} of ${STATE.milestones.length} complete`) + item("Overall Progress", fmtPct(getCompletionPct()));
+}
+function renderGanttLegend() {
+  const el = document.getElementById("ganttLegend"); if (!el) return;
+  const items = [["Not Started", "gray"], ["In Progress", "blue"], ["Complete", "green"], ["Delayed", "red"], ["On Hold", "amber"]];
+  el.innerHTML = items.map(([l, c]) => `<span><span class="status-dot dot-${c}"></span>${l}</span>`).join("") +
+    `<span><span class="legend-line today"></span>Today</span>` + (STATE.settings.targetCompletion ? `<span><span class="legend-line target"></span>Target</span>` : "");
 }
 function statusColor(status) {
   return { "Not Started": "gray", "In Progress": "blue", "Complete": "green", "Delayed": "red", "On Hold": "amber", "Cancelled": "gray" }[status] || "gray";
@@ -610,8 +740,11 @@ function statusColor(status) {
 function renderStatusFilters() {
   const el = document.getElementById("statusFilters"); if (!el) return;
   const statuses = ["All", ...MILESTONE_STATUSES];
-  el.innerHTML = statuses.map(s => `<button class="chip ${STATE.statusFilter === s ? "active" : ""}" data-filter="${s}">${s}</button>`).join("");
+  el.innerHTML = statuses.map(s => `<button class="chip ${STATE.statusFilter === s ? "active" : ""}" data-filter="${s}">${s}</button>`).join("") +
+    `<span class="chip-spacer"></span>` +
+    Object.keys(GANTT_ZOOM).map(z => `<button class="chip ${STATE.ganttZoom === z ? "active" : ""}" data-zoom="${z}">${z[0].toUpperCase() + z.slice(1)}</button>`).join("");
   el.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => { STATE.statusFilter = b.dataset.filter; renderAll(); });
+  el.querySelectorAll("[data-zoom]").forEach(b => b.onclick = () => { STATE.ganttZoom = b.dataset.zoom; renderAll(); });
 }
 
 /* ---------- Trades ---------- */
@@ -1071,6 +1204,7 @@ function renderSettingsPanel() {
   const cur = document.getElementById("setCurrency"); if (cur) cur.value = STATE.settings.currency || "USD";
   const taxLabel = document.getElementById("setTaxLabel"); if (taxLabel) taxLabel.value = STATE.settings.taxLabel || "Tax";
   const taxRate = document.getElementById("setTaxRate"); if (taxRate) taxRate.value = STATE.settings.taxRate || 0;
+  const showFin = document.getElementById("setShowFinancials"); if (showFin) showFin.checked = !!STATE.settings.showFinancialsToClients;
 }
 
 /* ---------- Duplicate project modal ---------- */
@@ -1100,7 +1234,13 @@ function openDuplicateModal(sourceId) {
 
 /* ---------- Modal / lightbox plumbing ---------- */
 function openModal() { document.getElementById("modalOverlay").classList.add("show"); }
-function closeModal() { document.getElementById("modalOverlay").classList.remove("show"); document.getElementById("modalBody").innerHTML = ""; }
+function closeModal() { document.getElementById("modalOverlay").classList.remove("show"); const b = document.getElementById("modalBody"); b.innerHTML = ""; b.classList.remove("modal-wide"); }
+function toast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) { el = document.createElement("div"); el.id = "toast"; el.className = "toast"; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 3500);
+}
 function openLightbox(images, index) { STATE.lightbox = { images, index }; renderLightbox(); document.getElementById("lightboxOverlay").classList.add("show"); }
 function closeLightbox() { document.getElementById("lightboxOverlay").classList.remove("show"); }
 function renderLightbox() { document.getElementById("lightboxImg").src = STATE.lightbox.images[STATE.lightbox.index] || ""; }
@@ -1136,6 +1276,404 @@ function importCSVFile(file) {
   reader.readAsText(file);
 }
 
+/* ---------- Schedule import (Excel / CSV / MS Project export / paste) ----------
+   Reads a spreadsheet, auto-detects which column is which (admin can
+   override every mapping), shows a preview of exactly what will be saved,
+   then writes all milestones in ONE atomic Firebase update -- either the
+   whole schedule saves or nothing does. Imported start dates are stored as
+   manual start overrides so the published schedule matches the source file
+   exactly; durations are business days (Mon–Fri minus holidays). */
+const IMPORT_FIELDS = [
+  ["id", "Row ID", ["id", "task id", "#", "no", "no.", "unique id", "wbs", "line"]],
+  ["name", "Task / Milestone Name", ["task name", "name", "milestone", "task", "activity", "milestone name", "activity name", "item", "title", "description"]],
+  ["start", "Start Date", ["start", "start date", "begin", "begin date", "planned start", "scheduled start", "baseline start"]],
+  ["finish", "Finish Date", ["finish", "finish date", "end", "end date", "due", "due date", "planned finish", "scheduled finish", "completion date"]],
+  ["duration", "Duration (business days)", ["duration", "days", "dur", "duration (days)", "business days", "work days", "working days"]],
+  ["predecessor", "Predecessor / Depends On", ["predecessors", "predecessor", "depends on", "dependency", "dependencies", "after"]],
+  ["status", "Status", ["status", "state"]],
+  ["progress", "% Complete", ["% complete", "percent complete", "progress", "% done", "complete", "pct complete", "%"]],
+  ["trade", "Trade", ["trade", "trades", "resource names", "resource", "resources", "contractor", "subcontractor", "sub", "assigned to"]],
+  ["notes", "Notes", ["notes", "comments", "comment", "remarks"]],
+];
+const IMPORT = { rows: [], headers: [], headerRow: 0, map: {}, workbook: null, sheet: "", fileName: "" };
+
+function normHeader(h) { return String(h == null ? "" : h).toLowerCase().replace(/[\s_]+/g, " ").replace(/[^a-z0-9%#. ()]/g, "").trim(); }
+
+function parseDelimited(text) {
+  text = String(text || "").replace(/^﻿/, "");
+  const firstLine = text.split(/\r?\n/)[0] || "";
+  const delim = firstLine.includes("\t") ? "\t" : (firstLine.split(";").length > firstLine.split(",").length ? ";" : ",");
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"' && cell === "") q = true;
+    else if (c === delim) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+
+function detectHeaderRow(rows) {
+  const nameAliases = IMPORT_FIELDS.find(f => f[0] === "name")[2];
+  const allAliases = [].concat(...IMPORT_FIELDS.map(f => f[2]));
+  let best = 0, bestScore = -1;
+  rows.slice(0, 15).forEach((r, i) => {
+    const cells = r.map(normHeader);
+    let score = cells.filter(c => c && allAliases.includes(c)).length;
+    if (cells.some(c => nameAliases.includes(c))) score += 2;
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+
+function autoMapColumns(headers) {
+  const norm = headers.map(normHeader), used = new Set(), map = {};
+  IMPORT_FIELDS.forEach(([key, , aliases]) => {
+    let idx = -1;
+    for (const a of aliases) { idx = norm.findIndex((h, i) => !used.has(i) && h === a); if (idx >= 0) break; }
+    if (idx < 0) for (const a of aliases) { if (a.length < 4) continue; idx = norm.findIndex((h, i) => !used.has(i) && h.includes(a)); if (idx >= 0) break; }
+    map[key] = idx; if (idx >= 0) used.add(idx);
+  });
+  if (map.name < 0) { const firstText = norm.findIndex((h, i) => !used.has(i) && h); map.name = firstText; }
+  return map;
+}
+
+function excelSerialToDate(n) { const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+// order: "mdy" | "dmy" for ambiguous numeric dates like 03/04/2026
+function parseFlexibleDate(v, order) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) { if (isNaN(v)) return null; const d = new Date(v.getTime() + 12 * 3600000); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  if (typeof v === "number") return v > 20000 && v < 80000 ? excelSerialToDate(v) : null;
+  let s = String(v).trim().replace(/^(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+/i, "").replace(/\s+\d{1,2}:\d{2}.*$/, "").trim();
+  if (!s || s.toLowerCase() === "na" || s.toLowerCase() === "n/a") return null;
+  if (/^\d+(\.\d+)?$/.test(s)) { const n = Number(s); return n > 20000 && n < 80000 ? excelSerialToDate(n) : null; }
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if (m) {
+    let a = +m[1], b = +m[2], y = +m[3]; if (y < 100) y += 2000;
+    let mo, d;
+    if (a > 12) { d = a; mo = b; } else if (b > 12) { mo = a; d = b; } else if (order === "dmy") { d = a; mo = b; } else { mo = a; d = b; }
+    const out = new Date(y, mo - 1, d); return isNaN(out) ? null : out;
+  }
+  m = s.match(/^(\d{1,2})[\s-]+([a-z]{3,})\.?[\s,-]+(\d{2,4})$/i); // 5 Mar 2026 / 5-Mar-26
+  if (m && MONTHS.includes(m[2].slice(0, 3).toLowerCase())) { let y = +m[3]; if (y < 100) y += 2000; return new Date(y, MONTHS.indexOf(m[2].slice(0, 3).toLowerCase()), +m[1]); }
+  m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})(st|nd|rd|th)?,?\s+(\d{2,4})$/i); // March 5, 2026
+  if (m && MONTHS.includes(m[1].slice(0, 3).toLowerCase())) { let y = +m[4]; if (y < 100) y += 2000; return new Date(y, MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()), +m[2]); }
+  const t = Date.parse(s); if (!isNaN(t)) { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  return null;
+}
+function guessDateOrder(values) {
+  for (const v of values) {
+    if (typeof v !== "string") continue;
+    const m = v.replace(/^[a-z]+\.?,?\s+/i, "").match(/^(\d{1,2})[-/.](\d{1,2})[-/.]\d{2,4}/);
+    if (m && +m[1] > 12) return "dmy";
+    if (m && +m[2] > 12) return "mdy";
+  }
+  return "mdy";
+}
+function parseDuration(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return Math.max(1, Math.round(v));
+  const s = String(v).toLowerCase().replace("?", "").trim();
+  const m = s.match(/(-?\d+(\.\d+)?)\s*([a-z]*)/); if (!m) return null;
+  const n = Number(m[1]), unit = m[3] || "d";
+  let days = n;
+  if (/^(w|wk|wks|week|weeks|ew|ewk)/.test(unit)) days = n * 5;
+  else if (/^(mo|mon|mons|month|months|emo)/.test(unit)) days = n * 21;
+  else if (/^(h|hr|hrs|hour|hours|eh)/.test(unit)) days = n / 8;
+  return Math.max(1, Math.round(days));
+}
+function parseProgress(v, scaleFraction) {
+  if (v == null || v === "") return null;
+  let n = typeof v === "number" ? v : Number(String(v).replace(/[%\s]/g, ""));
+  if (isNaN(n)) return null;
+  if (scaleFraction) n = n * 100;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+function parseStatus(v, progress) {
+  const s = String(v == null ? "" : v).toLowerCase().trim();
+  const direct = MILESTONE_STATUSES.find(x => x.toLowerCase() === s); if (direct) return direct;
+  if (/(complete|done|finish|closed)/.test(s)) return "Complete";
+  if (/(progress|started|underway|ongoing|active|working)/.test(s) && !/not/.test(s)) return "In Progress";
+  if (/(delay|late|behind|overdue)/.test(s)) return "Delayed";
+  if (/(hold|pause|wait)/.test(s)) return "On Hold";
+  if (/cancel/.test(s)) return "Cancelled";
+  if (s) return "Not Started";
+  if (progress >= 100) return "Complete";
+  if (progress > 0) return "In Progress";
+  return "Not Started";
+}
+
+/* Turns the raw sheet + column mapping into the milestone records that
+   will be saved. Pure function of IMPORT + options, so the preview is
+   exactly what gets written. */
+function buildImportPlan(opts) {
+  const map = IMPORT.map, data = IMPORT.rows.slice(IMPORT.headerRow + 1);
+  const cell = (r, key) => map[key] >= 0 ? r[map[key]] : "";
+  const dateVals = [].concat(...data.map(r => [cell(r, "start"), cell(r, "finish")]));
+  const order = opts.dateOrder === "auto" ? guessDateOrder(dateVals) : opts.dateOrder;
+  const progVals = data.map(r => cell(r, "progress")).map(v => typeof v === "number" ? v : Number(String(v).replace(/[%\s]/g, ""))).filter(n => !isNaN(n) && String(n) !== "");
+  const progHasPct = data.some(r => /%/.test(String(cell(r, "progress"))));
+  const scaleFraction = !progHasPct && progVals.length > 0 && Math.max(...progVals) <= 1 && progVals.some(n => n > 0 && n < 1);
+  const typeCol = IMPORT.headers.map(normHeader).indexOf("type");
+
+  const items = [];
+  data.forEach((r, i) => {
+    if (typeCol >= 0) { const t = String(r[typeCol] || "").toLowerCase(); if (t && !/(milestone|task|activity|phase)/.test(t)) return; }
+    const name = String(cell(r, "name") == null ? "" : cell(r, "name")).trim();
+    if (!name) return;
+    const warnings = [];
+    let start = parseFlexibleDate(cell(r, "start"), order);
+    let finish = parseFlexibleDate(cell(r, "finish"), order);
+    let duration = parseDuration(cell(r, "duration"));
+    if (cell(r, "start") !== "" && cell(r, "start") != null && !start) warnings.push("start date not recognised");
+    if (cell(r, "finish") !== "" && cell(r, "finish") != null && !finish) warnings.push("finish date not recognised");
+    if (start && finish && finish < start) { warnings.push("finish before start — used start only"); finish = null; }
+    if (start && finish) duration = calculateBusinessDays(start, finish);
+    else if (!start && finish) start = subtractBusinessDays(finish, duration || 1);
+    duration = duration || 1;
+    const progress = parseProgress(cell(r, "progress"), scaleFraction);
+    const rowId = map.id >= 0 ? String(cell(r, "id")).trim() : String(items.length + 1);
+    items.push({
+      key: uid("m"), rowId, srcRow: IMPORT.headerRow + i + 2, name, start, duration,
+      predecessorRaw: String(cell(r, "predecessor") == null ? "" : cell(r, "predecessor")).trim(),
+      status: parseStatus(cell(r, "status"), progress || 0), progress: progress || 0,
+      trade: String(cell(r, "trade") == null ? "" : cell(r, "trade")).trim(),
+      notes: String(cell(r, "notes") == null ? "" : cell(r, "notes")).trim(), warnings,
+    });
+  });
+  // Resolve predecessors: "3", "3FS+2 days", "3;4" (first one used), or a task name.
+  const byRowId = {}, byName = {};
+  items.forEach(it => { byRowId[it.rowId] = it; byName[it.name.toLowerCase()] = it; });
+  items.forEach(it => {
+    it.dependsOnKey = null;
+    if (!it.predecessorRaw) return;
+    const first = it.predecessorRaw.split(/[,;]/)[0].trim();
+    const num = first.match(/^(\d+)/);
+    const dep = (num && byRowId[num[1]]) || byName[first.toLowerCase()];
+    if (dep && dep !== it) it.dependsOnKey = dep.key; else it.warnings.push(`predecessor "${first}" not found`);
+    if (it.predecessorRaw.split(/[,;]/).length > 1) it.warnings.push("multiple predecessors — only the first is linked");
+  });
+  items.forEach(it => {
+    // Keep the file's dates exactly unless the admin asked to recalculate
+    // from dependencies (and this row actually has one to follow).
+    const followDep = !opts.keepDates && it.dependsOnKey;
+    it.manualStart = it.start && !followDep ? toISO(it.start) : null;
+    if (!it.start && !it.dependsOnKey) it.warnings.push("no start date — will start on project start date");
+  });
+  return { items, order };
+}
+
+function openScheduleImportModal() {
+  if (USER_ROLE !== "admin") return;
+  const body = document.getElementById("modalBody");
+  body.classList.add("modal-wide");
+  body.innerHTML = `
+    <h2>Import Schedule</h2>
+    <p class="muted">Upload an Excel (.xlsx / .xls), CSV, or an MS Project export saved as Excel/CSV — or paste rows copied straight from a spreadsheet. Columns are detected automatically; check the preview, then save.</p>
+    <div class="import-source">
+      <label>File<input type="file" id="impFile" accept=".xlsx,.xls,.xlsm,.ods,.csv,.tsv,.txt" /></label>
+      <label>…or paste from Excel / Google Sheets<textarea id="impPaste" placeholder="Copy the rows (including the header row) and paste here"></textarea></label>
+    </div>
+    <p style="margin:0 0 12px;"><a href="#" id="impTemplate">Download a blank template (CSV)</a></p>
+    <div id="impMapping"></div>
+    <div id="impPreview"></div>
+    <div class="import-actions">
+      <button class="btn btn-primary" id="impSave" disabled>Import</button>
+      <button class="btn" id="impCancel">Cancel</button>
+    </div>`;
+  openModal();
+  document.getElementById("impCancel").onclick = closeModal;
+  document.getElementById("impTemplate").onclick = (e) => { e.preventDefault(); downloadScheduleTemplate(); };
+  document.getElementById("impFile").onchange = (e) => { const f = e.target.files[0]; if (f) loadImportFile(f); };
+  let pasteTimer;
+  document.getElementById("impPaste").oninput = (e) => {
+    clearTimeout(pasteTimer);
+    pasteTimer = setTimeout(() => { if (e.target.value.trim()) { IMPORT.fileName = "pasted rows"; IMPORT.workbook = null; setImportRows(parseDelimited(e.target.value)); } }, 250);
+  };
+  document.getElementById("impSave").onclick = saveScheduleImport;
+}
+
+function loadImportFile(file) {
+  IMPORT.fileName = file.name;
+  const isSheet = /\.(xlsx|xls|xlsm|ods)$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onerror = () => alert("Could not read that file.");
+  if (isSheet) {
+    if (typeof XLSX === "undefined") { alert("The Excel reader didn't load (check your internet connection). You can save the sheet as CSV and import that instead."); return; }
+    reader.onload = () => {
+      try {
+        IMPORT.workbook = XLSX.read(new Uint8Array(reader.result), { type: "array", cellDates: true });
+        const sheet = IMPORT.workbook.SheetNames.find(n => (XLSX.utils.sheet_to_json(IMPORT.workbook.Sheets[n], { header: 1 }) || []).length > 1) || IMPORT.workbook.SheetNames[0];
+        selectImportSheet(sheet);
+      } catch (err) { alert("Could not read that spreadsheet: " + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    IMPORT.workbook = null;
+    reader.onload = () => setImportRows(parseDelimited(reader.result));
+    reader.readAsText(file);
+  }
+}
+function selectImportSheet(name) {
+  IMPORT.sheet = name;
+  const rows = XLSX.utils.sheet_to_json(IMPORT.workbook.Sheets[name], { header: 1, raw: true, defval: "" });
+  setImportRows(rows.filter(r => r.some(c => String(c).trim() !== "")));
+}
+function setImportRows(rows) {
+  IMPORT.rows = rows;
+  IMPORT.headerRow = detectHeaderRow(rows);
+  IMPORT.headers = (rows[IMPORT.headerRow] || []).map(h => String(h == null ? "" : h).trim());
+  IMPORT.map = autoMapColumns(IMPORT.headers);
+  renderImportMapping();
+  renderImportPreview();
+}
+function renderImportMapping() {
+  const el = document.getElementById("impMapping"); if (!el) return;
+  if (!IMPORT.rows.length) { el.innerHTML = ""; return; }
+  const colOpts = (sel) => `<option value="-1">— not in file —</option>` + IMPORT.headers.map((h, i) => `<option value="${i}" ${sel === i ? "selected" : ""}>${escapeHtml(h || "Column " + (i + 1))}</option>`).join("");
+  const sheetSel = IMPORT.workbook && IMPORT.workbook.SheetNames.length > 1
+    ? `<label>Sheet<select id="impSheet">${IMPORT.workbook.SheetNames.map(n => `<option ${n === IMPORT.sheet ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}</select></label>` : "";
+  const hasExisting = STATE.milestones.length > 0;
+  el.innerHTML = `
+    <h3>Columns <span class="muted" style="font-weight:400;font-size:12px;">from ${escapeHtml(IMPORT.fileName)}</span></h3>
+    <div class="form-grid import-map">
+      ${sheetSel}
+      <label>Header row<select id="impHeaderRow">${IMPORT.rows.slice(0, 15).map((r, i) => `<option value="${i}" ${i === IMPORT.headerRow ? "selected" : ""}>Row ${i + 1}: ${escapeHtml(r.filter(Boolean).slice(0, 3).join(", ").slice(0, 40))}</option>`).join("")}</select></label>
+      ${IMPORT_FIELDS.map(([key, label]) => `<label>${label}<select data-map="${key}">${colOpts(IMPORT.map[key])}</select></label>`).join("")}
+    </div>
+    <h3>Options</h3>
+    <div class="form-grid import-map">
+      <label>Date format<select id="impDateOrder"><option value="auto">Auto-detect</option><option value="mdy">MM/DD/YYYY</option><option value="dmy">DD/MM/YYYY</option></select></label>
+      <label>Existing milestones<select id="impMode" ${hasExisting ? "" : "disabled"}>
+        <option value="replace">Replace the current schedule (${STATE.milestones.length} milestones)</option>
+        <option value="append">Add to the current schedule</option></select></label>
+    </div>
+    <label class="checkline"><input type="checkbox" id="impKeepDates" checked /> Keep the file's dates exactly (uncheck to recalculate dates from predecessors)</label>
+    <label class="checkline"><input type="checkbox" id="impCreateTrades" checked /> Create trades that don't exist yet and link them to milestones</label>
+    <label class="checkline"><input type="checkbox" id="impSetDates" ${STATE.settings.start ? "" : "checked"} /> Set project start / target completion from the imported schedule${STATE.settings.start ? "" : " (currently blank)"}</label>`;
+  el.querySelectorAll("[data-map]").forEach(s => s.onchange = () => { IMPORT.map[s.dataset.map] = Number(s.value); renderImportPreview(); });
+  el.querySelectorAll("#impDateOrder, #impKeepDates, #impMode").forEach(s => s.onchange = renderImportPreview);
+  document.getElementById("impHeaderRow").onchange = (e) => {
+    IMPORT.headerRow = Number(e.target.value);
+    IMPORT.headers = (IMPORT.rows[IMPORT.headerRow] || []).map(h => String(h == null ? "" : h).trim());
+    IMPORT.map = autoMapColumns(IMPORT.headers); renderImportMapping(); renderImportPreview();
+  };
+  const sheetEl = document.getElementById("impSheet"); if (sheetEl) sheetEl.onchange = (e) => selectImportSheet(e.target.value);
+}
+function importOptions() {
+  const v = id => document.getElementById(id);
+  return {
+    dateOrder: v("impDateOrder") ? v("impDateOrder").value : "auto",
+    keepDates: v("impKeepDates") ? v("impKeepDates").checked : true,
+    mode: v("impMode") && !v("impMode").disabled ? v("impMode").value : "replace",
+    createTrades: v("impCreateTrades") ? v("impCreateTrades").checked : true,
+    setProjectDates: v("impSetDates") ? v("impSetDates").checked : false,
+  };
+}
+function renderImportPreview() {
+  const el = document.getElementById("impPreview"); const save = document.getElementById("impSave"); if (!el) return;
+  if (!IMPORT.rows.length) { el.innerHTML = ""; save.disabled = true; return; }
+  if (IMPORT.map.name < 0) { el.innerHTML = `<p class="red">Choose which column holds the task / milestone name.</p>`; save.disabled = true; return; }
+  const plan = buildImportPlan(importOptions());
+  const keyName = {}; plan.items.forEach(it => keyName[it.key] = it.name);
+  const warnCount = plan.items.filter(it => it.warnings.length).length;
+  save.disabled = !plan.items.length;
+  save.textContent = `Import ${plan.items.length} milestone${plan.items.length === 1 ? "" : "s"}`;
+  el.innerHTML = `
+    <h3>Preview <span class="muted" style="font-weight:400;font-size:12px;">${plan.items.length} milestones · dates read as ${plan.order === "dmy" ? "DD/MM/YYYY" : "MM/DD/YYYY"}${warnCount ? ` · <span class="red">${warnCount} with notes below</span>` : ""}</span></h3>
+    <div class="import-preview"><table class="data-table">
+      <thead><tr><th>#</th><th>Name</th><th>Start</th><th>Dur.</th><th>Follows</th><th>Status</th><th>%</th><th>Trade</th></tr></thead>
+      <tbody>${plan.items.slice(0, 200).map(it => `<tr>
+        <td class="muted">${escapeHtml(it.rowId)}</td>
+        <td>${escapeHtml(it.name)}${it.warnings.length ? `<div class="import-warn">${it.warnings.map(escapeHtml).join("; ")}</div>` : ""}</td>
+        <td>${it.start ? fmtDateLong(it.start) : '<span class="muted">—</span>'}</td><td>${it.duration}d</td>
+        <td>${it.dependsOnKey ? escapeHtml(keyName[it.dependsOnKey]) : ""}</td><td>${escapeHtml(it.status)}</td><td>${it.progress}%</td><td>${escapeHtml(it.trade)}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${plan.items.length > 200 ? `<p class="muted">Showing the first 200 of ${plan.items.length}.</p>` : ""}`;
+}
+
+function saveScheduleImport() {
+  const opts = importOptions();
+  const plan = buildImportPlan(opts);
+  if (!plan.items.length) return;
+  if (opts.mode === "replace" && STATE.milestones.length && !confirm(`Replace the current ${STATE.milestones.length} milestones with ${plan.items.length} imported ones?`)) return;
+  const btn = document.getElementById("impSave"); btn.disabled = true; btn.textContent = "Saving…";
+
+  const updates = {};
+  const baseOrder = opts.mode === "append" ? STATE.milestones.reduce((mx, m) => Math.max(mx, (m.order || 0) + 1), 0) : 0;
+  const newMilestones = {};
+  plan.items.forEach((it, i) => {
+    const rec = { name: it.name, duration: it.duration, status: it.status, progress: it.progress, notes: it.notes, order: baseOrder + i, importedAt: Date.now() };
+    if (it.dependsOnKey) rec.dependsOn = it.dependsOnKey;
+    if (it.manualStart) rec.manualStart = it.manualStart;
+    newMilestones[it.key] = rec;
+  });
+  if (opts.mode === "replace") updates["milestones"] = newMilestones;
+  else Object.entries(newMilestones).forEach(([k, v]) => { updates[`milestones/${k}`] = v; });
+
+  // Trade links: existing trades keep links to surviving milestones; new
+  // links from the file are added; unknown trades are created if asked.
+  const tradeByName = {}; STATE.trades.forEach(t => { tradeByName[String(t.name || "").toLowerCase()] = t; });
+  const tradeLinks = {}; const newTrades = {};
+  plan.items.forEach(it => {
+    if (!it.trade) return;
+    it.trade.split(/[,;]/).map(s => s.replace(/\[.*?\]/g, "").trim()).filter(Boolean).forEach(tn => {
+      let t = tradeByName[tn.toLowerCase()];
+      if (!t && opts.createTrades) {
+        const id = uid("t");
+        t = { id, name: tn, company: "", contact: "", email: "", phone: "", scopeOfWork: "", contractValue: 0, status: "Active", notes: "" };
+        tradeByName[tn.toLowerCase()] = t; newTrades[id] = t;
+      }
+      if (t) (tradeLinks[t.id] = tradeLinks[t.id] || []).push(it.key);
+    });
+  });
+  STATE.trades.forEach(t => {
+    const kept = opts.mode === "replace" ? [] : (t.milestoneIds || []);
+    const links = kept.concat(tradeLinks[t.id] || []);
+    if (opts.mode === "replace" || tradeLinks[t.id]) updates[`trades/${t.id}/milestoneIds`] = links.length ? links : null;
+  });
+  Object.values(newTrades).forEach(t => { const copy = Object.assign({}, t, { milestoneIds: tradeLinks[t.id] || [] }); delete copy.id; updates[`trades/${t.id}`] = copy; });
+
+  if (opts.setProjectDates) {
+    const starts = plan.items.map(it => it.start).filter(Boolean);
+    if (starts.length) {
+      const first = new Date(Math.min(...starts));
+      updates["settings/start"] = toISO(first);
+      const last = plan.items.filter(it => it.start).map(it => addBusinessDays(it.start, it.duration)).reduce((a, b) => (b > a ? b : a), first);
+      if (!STATE.settings.targetCompletion) updates["settings/targetCompletion"] = toISO(last);
+    }
+  }
+
+  db.ref(`projects/${CURRENT_PROJECT_ID}`).update(updates).then(() => {
+    const n = plan.items.length;
+    logActivity("Schedule imported", `${n} milestones from ${IMPORT.fileName || "file"} (${opts.mode === "append" ? "added" : "replaced schedule"})${Object.keys(newTrades).length ? `, ${Object.keys(newTrades).length} trades created` : ""}.`);
+    closeModal();
+    showSection("schedule");
+    toast(`Imported ${n} milestones ✓ — saved and live for viewers`);
+  }).catch(err => { btn.disabled = false; btn.textContent = "Import"; reportSaveError(err); });
+}
+
+function downloadScheduleTemplate() {
+  const rows = [
+    ["ID", "Task Name", "Start", "Finish", "Duration", "Predecessors", "Status", "% Complete", "Trade", "Notes"],
+    ["1", "Site mobilization", "2026-11-02", "2026-11-06", "", "", "Not Started", "0", "General Contractor", ""],
+    ["2", "Excavation", "", "", "10", "1", "Not Started", "0", "Excavation", "Starts after mobilization"],
+    ["3", "Footings & foundation", "2026-11-23", "2026-12-11", "", "2", "Not Started", "0", "Concrete", ""],
+  ];
+  downloadFile("schedule-import-template.csv", toCSV(rows), "text/csv");
+}
+
 /* ---------- Auth ---------- */
 function openLoginModal() { document.getElementById("loginModalOverlay").classList.add("show"); }
 function closeLoginModal() { document.getElementById("loginModalOverlay").classList.remove("show"); }
@@ -1168,6 +1706,16 @@ function init() {
   document.getElementById("btnSaveClient").onclick = saveClientInfo;
   document.getElementById("btnAddMilestone").onclick = () => openMilestoneModal(null);
   document.getElementById("btnAddMilestoneGantt").onclick = () => openMilestoneModal(null);
+  ["btnImportSchedule", "btnImportScheduleGantt", "btnImportScheduleSettings"].forEach(id => { const b = document.getElementById(id); if (b) b.onclick = openScheduleImportModal; });
+  document.getElementById("btnClearMilestones").onclick = () => {
+    if (!STATE.milestones.length) return;
+    if (!confirm(`Delete all ${STATE.milestones.length} milestones? This cannot be undone.`)) return;
+    ref("milestones").remove().then(() => { logActivity("Schedule cleared", "All milestones deleted."); toast("All milestones deleted"); }).catch(reportSaveError);
+  };
+  document.getElementById("btnPrintSchedule").onclick = () => window.print();
+  document.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => showSection(b.dataset.goto));
+  document.getElementById("setShowFinancials").onchange = (e) => ref("settings/showFinancialsToClients").set(e.target.checked)
+    .then(() => toast(e.target.checked ? "Financials are now visible to viewers" : "Financials hidden from viewers")).catch(reportSaveError);
   document.getElementById("btnAddHoliday").onclick = () => {
     const date = document.getElementById("newHolidayDate").value, name = document.getElementById("newHolidayName").value;
     if (!date) return;
@@ -1191,7 +1739,7 @@ function init() {
   document.getElementById("btnImportCSV").onclick = () => document.getElementById("csvFileInput").click();
   document.getElementById("csvFileInput").onchange = (e) => { if (e.target.files[0]) importCSVFile(e.target.files[0]); e.target.value = ""; };
   document.getElementById("btnSaveFinSettings").onclick = () => {
-    ref("settings").update({ currency: document.getElementById("setCurrency").value, taxLabel: document.getElementById("setTaxLabel").value, taxRate: Number(document.getElementById("setTaxRate").value) || 0 }).catch(err => reportSaveError(err));
+    ref("settings").update({ currency: document.getElementById("setCurrency").value, taxLabel: document.getElementById("setTaxLabel").value, taxRate: Number(document.getElementById("setTaxRate").value) || 0 }).then(() => toast("Saved ✓")).catch(err => reportSaveError(err));
   };
 
   const switcherEl = document.getElementById("projectSwitcher"); if (switcherEl) switcherEl.onchange = (e) => switchProject(e.target.value);
@@ -1213,6 +1761,9 @@ function init() {
     const btn = document.createElement("button"); btn.className = "btn btn-primary"; btn.id = "btnAddPayment"; btn.textContent = "+ Add Payment";
     paymentsCard.appendChild(btn); btn.onclick = openAddPaymentModal;
   }
+
+  let resizeTimer;
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (CURRENT_PROJECT_ID) renderGantt(); }, 150); });
 
   initAuth();
   listenProjectRegistry();

@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Construction Project Management</title>
+<title>Project Schedule</title>
+<meta name="description" content="Live construction project schedule" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -18,6 +19,7 @@
     </div>
   </div>
   <div class="topbar-right">
+    <span class="viewer-badge viewer-only">View only</span>
     <select id="projectSwitcher" title="Switch project"></select>
     <button class="btn" id="btnLogin">Admin Login</button>
     <button class="btn" id="btnLogout" style="display:none;">Log Out</button>
@@ -34,16 +36,16 @@
     <button class="nav-item" data-section="milestones">Milestones</button>
     <button class="nav-item" data-section="trades">Trades</button>
     <button class="nav-item" data-section="specs">Specs</button>
-    <button class="nav-item" data-section="budget">Budget vs Actual</button>
-    <button class="nav-item" data-section="financials">Financials</button>
-    <button class="nav-item" data-section="invoices">Invoices</button>
-    <button class="nav-item" data-section="payments">Payments</button>
-    <button class="nav-item" data-section="changeOrders">Change Orders</button>
-    <button class="nav-item" data-section="siteRentals">Site Rentals</button>
+    <button class="nav-item" data-section="budget" data-financial>Budget vs Actual</button>
+    <button class="nav-item" data-section="financials" data-financial>Financials</button>
+    <button class="nav-item" data-section="invoices" data-financial>Invoices</button>
+    <button class="nav-item" data-section="payments" data-financial>Payments</button>
+    <button class="nav-item" data-section="changeOrders" data-financial>Change Orders</button>
+    <button class="nav-item" data-section="siteRentals" data-financial>Site Rentals</button>
     <button class="nav-item" data-section="documents">Documents</button>
     <button class="nav-item" data-section="team">Project Team</button>
-    <button class="nav-item" data-section="activity">Activity</button>
-    <button class="nav-item" data-section="settings">Settings</button>
+    <button class="nav-item" data-section="activity" data-admin-only>Activity</button>
+    <button class="nav-item" data-section="settings" data-admin-only>Settings</button>
   </nav>
 
   <main class="content">
@@ -100,11 +102,16 @@
         <div class="card metric-card"><div class="metric-label">Project Completion</div><div class="metric-value" id="mCompletion">0%</div></div>
         <div class="card metric-card"><div class="metric-label">On-Track Score</div><div class="metric-value" id="mOnTrack">0%</div></div>
         <div class="card metric-card"><div class="metric-label">Schedule Status</div><div class="metric-value" id="mScheduleStatus">Not started</div></div>
-        <div class="card metric-card"><div class="metric-label">Budget</div><div class="metric-value" id="mBudget">$0.00</div></div>
-        <div class="card metric-card"><div class="metric-label">Committed Cost</div><div class="metric-value" id="mCommitted">$0.00</div></div>
-        <div class="card metric-card"><div class="metric-label">Invoiced</div><div class="metric-value" id="mInvoiced">$0.00</div></div>
-        <div class="card metric-card"><div class="metric-label">Paid</div><div class="metric-value" id="mPaid">$0.00</div></div>
-        <div class="card metric-card"><div class="metric-label">Outstanding</div><div class="metric-value" id="mOutstanding">$0.00</div></div>
+        <div class="card metric-card"><div class="metric-label">Projected Completion</div><div class="metric-value" id="mProjected">—</div></div>
+        <div class="card metric-card" data-financial><div class="metric-label">Budget</div><div class="metric-value" id="mBudget">$0.00</div></div>
+        <div class="card metric-card" data-financial><div class="metric-label">Committed Cost</div><div class="metric-value" id="mCommitted">$0.00</div></div>
+        <div class="card metric-card" data-financial><div class="metric-label">Invoiced</div><div class="metric-value" id="mInvoiced">$0.00</div></div>
+        <div class="card metric-card" data-financial><div class="metric-label">Paid</div><div class="metric-value" id="mPaid">$0.00</div></div>
+        <div class="card metric-card" data-financial><div class="metric-label">Outstanding</div><div class="metric-value" id="mOutstanding">$0.00</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2>Schedule at a Glance</h2><button class="btn" data-goto="schedule">View full schedule</button></div>
+        <div id="ovGlance"></div>
       </div>
       <div class="card">
         <h2>Project Address</h2>
@@ -117,9 +124,9 @@
       <div class="card">
         <h2>Project Information</h2>
         <div class="form-grid" id="projectInfoForm"></div>
-        <button class="btn btn-primary" id="btnSaveProjectInfo">Save</button>
+        <button class="btn btn-primary admin-only" id="btnSaveProjectInfo">Save</button>
       </div>
-      <div class="card">
+      <div class="card admin-only">
         <h2>Client Information</h2>
         <div class="form-grid" id="clientForm"></div>
         <button class="btn btn-primary" id="btnSaveClient">Save</button>
@@ -130,33 +137,43 @@
     <section id="sectionSchedule" class="panel hidden">
       <div class="card gantt-card">
         <div class="card-header">
-          <h2>Interactive Timeline</h2>
-          <button class="btn btn-primary" id="btnAddMilestoneGantt">+ Add Milestone</button>
+          <h2>Project Schedule</h2>
+          <div class="header-actions">
+            <button class="btn" id="btnPrintSchedule">Print</button>
+            <button class="btn admin-only" id="btnImportScheduleGantt">Import Schedule</button>
+            <button class="btn btn-primary admin-only" id="btnAddMilestoneGantt">+ Add Milestone</button>
+          </div>
         </div>
+        <div class="schedule-meta" id="scheduleMeta"></div>
         <div class="chips" id="statusFilters"></div>
+        <div id="ganttEmpty" class="empty-state hidden">
+          <p>No schedule has been published yet.</p>
+          <p class="muted admin-only">Use <strong>Import Schedule</strong> to bring in an Excel / CSV / MS Project export, or add milestones one by one.</p>
+        </div>
         <div class="gantt-scroll">
           <div class="gantt-wrap" id="ganttWrap">
             <div class="gantt-months" id="ganttMonths"></div>
             <div id="ganttBody"></div>
           </div>
         </div>
+        <div class="gantt-legend" id="ganttLegend"></div>
       </div>
     </section>
 
     <!-- ===================== MILESTONES ===================== -->
     <section id="sectionMilestones" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Milestones</h2><button class="btn btn-primary" id="btnAddMilestone">+ Add Milestone</button></div>
+        <div class="card-header"><h2>Milestones</h2><div class="header-actions"><button class="btn admin-only" id="btnImportSchedule">Import Schedule</button><button class="btn btn-primary admin-only" id="btnAddMilestone">+ Add Milestone</button><button class="btn admin-only" id="btnClearMilestones">Delete All</button></div></div>
         <div id="milestonesEmpty" class="empty-state hidden">
           <p>No milestones created yet.</p>
           <p class="muted">Create your first construction milestone.</p>
         </div>
         <table class="data-table" id="milestonesTable">
-          <thead><tr><th>Name</th><th>Start</th><th>Finish</th><th>Duration</th><th>Status</th><th>Progress</th><th>Trade(s)</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Name</th><th>Start</th><th>Finish</th><th>Duration</th><th>Status</th><th>Progress</th><th>Trade(s)</th><th class="admin-only"></th></tr></thead>
           <tbody id="milestonesTableBody"></tbody>
         </table>
       </div>
-      <div class="card">
+      <div class="card admin-only">
         <h2>Holidays</h2>
         <div id="holidaysList"></div>
         <div class="inline-form">
@@ -170,7 +187,7 @@
     <!-- ===================== TRADES ===================== -->
     <section id="sectionTrades" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Trades</h2><button class="btn btn-primary" id="btnAddTrade">+ Add Trade</button></div>
+        <div class="card-header"><h2>Trades</h2><button class="btn btn-primary admin-only" id="btnAddTrade">+ Add Trade</button></div>
         <div id="tradesEmpty" class="empty-state hidden">
           <p>No trades added yet.</p>
           <p class="muted">Add your first trade to begin tracking project costs.</p>
@@ -185,7 +202,7 @@
     <!-- ===================== SPECS ===================== -->
     <section id="sectionSpecs" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Specifications</h2><button class="btn btn-primary" id="btnAddSpec">+ Add Spec</button></div>
+        <div class="card-header"><h2>Specifications</h2><button class="btn btn-primary admin-only" id="btnAddSpec">+ Add Spec</button></div>
         <div id="specsEmpty" class="empty-state hidden"><p>No specifications yet.</p></div>
         <div id="specsByTrade"></div>
       </div>
@@ -197,14 +214,14 @@
         <div class="card-header">
           <h2>Budget vs Actual</h2>
           <div>
-            <label class="inline-label">Actual Expense Basis
+            <label class="inline-label admin-only">Actual Expense Basis
               <select id="budgetBasisSelect">
                 <option value="Invoice">Invoice Amount</option>
                 <option value="Paid">Paid Amount</option>
                 <option value="Manual">Manually Entered Actual</option>
               </select>
             </label>
-            <button class="btn btn-primary" id="btnAddBudgetCategory">+ Add Category</button>
+            <button class="btn btn-primary admin-only" id="btnAddBudgetCategory">+ Add Category</button>
           </div>
         </div>
         <div class="metric-grid" id="budgetSummaryMetrics"></div>
@@ -226,7 +243,7 @@
     <!-- ===================== INVOICES ===================== -->
     <section id="sectionInvoices" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Invoices</h2><button class="btn btn-primary" id="btnAddInvoice">+ Add Invoice</button></div>
+        <div class="card-header"><h2>Invoices</h2><button class="btn btn-primary admin-only" id="btnAddInvoice">+ Add Invoice</button></div>
         <div id="invoicesEmpty" class="empty-state hidden">
           <p>No invoices yet.</p>
           <p class="muted">Invoices can be uploaded after trades are created.</p>
@@ -252,7 +269,7 @@
     <!-- ===================== CHANGE ORDERS ===================== -->
     <section id="sectionChangeOrders" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Change Orders</h2><button class="btn btn-primary" id="btnAddChangeOrder">+ Add Change Order</button></div>
+        <div class="card-header"><h2>Change Orders</h2><button class="btn btn-primary admin-only" id="btnAddChangeOrder">+ Add Change Order</button></div>
         <table class="data-table">
           <thead><tr><th>#</th><th>Description</th><th>Trade</th><th>Original</th><th>Change</th><th>Revised</th><th>Status</th><th></th></tr></thead>
           <tbody id="changeOrdersTableBody"></tbody>
@@ -263,7 +280,7 @@
     <!-- ===================== SITE RENTALS ===================== -->
     <section id="sectionSiteRentals" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Site Rentals</h2><button class="btn btn-primary" id="btnAddSiteRental">+ Add Site Rental</button></div>
+        <div class="card-header"><h2>Site Rentals</h2><button class="btn btn-primary admin-only" id="btnAddSiteRental">+ Add Site Rental</button></div>
         <table class="data-table">
           <thead><tr><th>Type</th><th>Vendor</th><th>Start</th><th>End</th><th>Cost</th><th>Invoiced</th><th>Paid</th><th>Outstanding</th><th></th></tr></thead>
           <tbody id="siteRentalsTableBody"></tbody>
@@ -277,8 +294,8 @@
         <div class="card-header">
           <h2>Documents</h2>
           <div>
-            <select id="docCategorySelect"></select>
-            <button class="btn btn-primary" id="btnUploadDocument">Upload</button>
+            <select id="docCategorySelect" class="admin-only"></select>
+            <button class="btn btn-primary admin-only" id="btnUploadDocument">Upload</button>
             <input type="file" id="documentFileInput" style="display:none;" />
           </div>
         </div>
@@ -293,7 +310,7 @@
     <!-- ===================== PROJECT TEAM ===================== -->
     <section id="sectionTeam" class="panel hidden">
       <div class="card">
-        <div class="card-header"><h2>Project Team</h2><button class="btn btn-primary" id="btnAddTeamMember">+ Add Team Member</button></div>
+        <div class="card-header"><h2>Project Team</h2><button class="btn btn-primary admin-only" id="btnAddTeamMember">+ Add Team Member</button></div>
         <table class="data-table">
           <thead><tr><th>Name</th><th>Role</th><th>Company</th><th>Email</th><th>Phone</th><th></th></tr></thead>
           <tbody id="teamTableBody"></tbody>
@@ -322,6 +339,12 @@
         <div id="adminProjectsList"></div>
       </div>
       <div class="card">
+        <h2>Viewer Access</h2>
+        <p class="muted">Visitors who are not logged in see a read-only view. Choose what they can see.</p>
+        <label class="checkline"><input type="checkbox" id="setShowFinancials" /> Show budget, invoices, payments, change orders and other financials to viewers</label>
+        <p class="muted" style="font-size:12px;">Note: this hides the financial pages in the viewer UI. To make the data itself private, keep financial records out of a project that is shared publicly.</p>
+      </div>
+      <div class="card">
         <h2>Holidays &amp; Working Days</h2>
         <p class="muted">Monday–Friday are working days by default. Configure holidays from the Milestones tab.</p>
       </div>
@@ -338,7 +361,8 @@
         <h2>Data Export / Import</h2>
         <button class="btn" id="btnExportCSV">Export CSV</button>
         <button class="btn" id="btnExportJSON">Export JSON</button>
-        <button class="btn" id="btnImportCSV">Import CSV</button>
+        <button class="btn" id="btnImportCSV">Import CSV (trades/budget)</button>
+        <button class="btn" id="btnImportScheduleSettings">Import Schedule</button>
         <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
       </div>
     </section>
@@ -378,6 +402,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="firebase-config.js"></script>
 <script src="data.js"></script>
 <script src="script.js"></script>

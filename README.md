@@ -77,6 +77,33 @@ are clear, not hidden:
 If you want any of these built out further, just ask — the
 architecture doesn't need to change, these are additive.
 
+
+## Importing a schedule
+
+Log in as Admin → **Schedule** (or **Milestones**) → **Import Schedule**.
+
+- Accepts **Excel (.xlsx/.xls)**, **CSV**, an **MS Project** export saved
+  as Excel/CSV, or rows **pasted** straight from Excel / Google Sheets.
+- Columns are detected automatically (Task Name, Start, Finish, Duration,
+  Predecessors, % Complete, Status, Trade/Resource Names, Notes) and every
+  mapping can be changed. "Download a blank template" gives a ready-made CSV.
+- A preview shows exactly what will be saved before anything is written.
+- Choose **Replace** (swap in the new schedule) or **Add** (append).
+- The whole import is saved to Firebase in one atomic write — it either
+  all saves or nothing does — and appears live for viewers immediately.
+- Dates from the file are kept exactly; durations are business days
+  (Mon–Fri minus holidays). Uncheck "Keep the file's dates exactly" to
+  recalculate from predecessors instead.
+
+## Admin vs viewer
+
+Anyone with the link sees a clean **read-only** view (schedule, milestones,
+trades, specs, documents, team). All add/edit/delete/import controls,
+Settings and Activity appear only after **Admin Login**. Financial pages
+are hidden from viewers unless you turn on **Settings → Viewer Access**.
+Writes are enforced server-side by `firebase-database-rules.json`
+(only signed-in users can write) — make sure those rules are published.
+
 ## 2. One-time setup for a NEW deployment
 
 1. **Create a Firebase project**: console.firebase.google.com → Add
@@ -93,10 +120,9 @@ architecture doesn't need to change, these are additive.
    this repo → Publish.
 6. **Project settings → General → Your apps → Add app (Web)** → copy
    the config object it gives you.
-7. Rename `firebase-config.template.js` to `firebase-config.js` and
-   paste your config values in. (This file is in `.gitignore` so you
-   won't accidentally commit it, but note: this config is not a
-   secret — see the comment in the file.)
+7. Paste your config values into `firebase-config.js`. It must be
+   committed so the deployed site can connect (this config is not a
+   secret — access is controlled by the database rules).
 
 ### Reusing one Firebase project for multiple sites
 
