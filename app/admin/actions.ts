@@ -55,7 +55,6 @@ export async function createProject(_prev: FormState, formData: FormData): Promi
 
 export async function removeProject(formData: FormData): Promise<void> {
   await requireAdmin();
-  if (!canWrite()) throw new Error("Delete the project from data/projects.json on GitHub.");
   await deleteProject(String(formData.get("slug") ?? ""));
   redirect("/admin");
 }

@@ -7,17 +7,16 @@ A simple, client-facing construction schedule with a Gantt chart and a password-
 
 ## How data is saved (no database)
 
-All schedules live in one file in this repo: **`data/projects.json`**.
+Each project is a folder of JSON files in this repo: **`data/projects/<link>/<timestamp>.json`**.
+The newest file is the current schedule; older files are kept as history.
 
-- **Live site (default, no setup):** open `/admin`, pick a project, and edit it. Click **Publish on GitHub**:
-  the update is copied for you. Open the file on GitHub, select all, paste, and click **Commit changes**.
-  Vercel redeploys automatically and the client page updates in about a minute.
-  Only people with write access to this GitHub repo can publish.
-- **Locally:** `npm run dev` with `ADMIN_PASSWORD` set; saving writes `data/projects.json` directly.
-- **Optional one-click saving on Vercel:** add `ADMIN_PASSWORD`, `SESSION_SECRET` and a `GITHUB_TOKEN`
-  (fine-grained token, this repo only, Contents: Read and write; create one at
-  https://github.com/settings/personal-access-tokens/new). The Save button then commits to GitHub for you,
-  and `/admin` asks for the password.
+**Updating a schedule on the live site:**
+1. Open `/admin`, click **Edit schedule** (or create a **New project**), and make your changes.
+2. Click **Publish on GitHub**. GitHub opens with the new schedule file already filled in.
+3. Click **Commit changes…**, then **Commit changes**. Vercel redeploys; the client page updates in about a minute.
+
+Only people who can sign in to GitHub with write access to this repo can publish. Nothing changes until you commit.
+To remove a project, delete its folder in `data/projects` on GitHub.
 
 No Supabase, Firebase, or other external database is used.
 
@@ -25,7 +24,7 @@ No Supabase, Firebase, or other external database is used.
 
 ```bash
 npm install
-cp .env.example .env.local   # then set ADMIN_PASSWORD
+cp .env.example .env.local   # then set ADMIN_PASSWORD (local saving writes data/projects directly)
 npm run dev                  # http://localhost:3000/project/138-paling
 ```
 
@@ -41,10 +40,10 @@ publish, then send the client
 
 ## Data shape
 
-`data/projects.json` is a list of projects:
+Each file in `data/projects/<link>/` holds one project:
 
 ```json
-[{
+{
   "slug": "138-paling",
   "projectName": "",
   "propertyAddress": "138 Paling Road, Hamilton, ON",
@@ -52,7 +51,7 @@ publish, then send the client
   "schedule": [
     { "id": "a3", "activity": "Framing", "startDate": "2026-07-23", "endDate": "2026-08-14", "status": "complete" }
   ]
-}]
+}
 ```
 
 `status` is one of `complete`, `in-progress`, `upcoming`, `delayed`. Duration is counted in calendar days, including
@@ -68,7 +67,8 @@ app/admin/actions.ts          server actions (login, save, create, delete)
 components/Gantt.tsx          Gantt chart + legend
 components/ScheduleView.tsx   client-facing layout (also used as the admin live preview)
 components/admin/             editor + admin forms
-lib/store.ts                  storage (data/projects.json: on disk, or via the GitHub API)
+lib/store.ts                  storage (data/projects/<link>/*.json)
+scripts/build-data.mjs        bundles the newest schedule of each project before every build
 lib/auth.ts                   password login, signed cookie
 lib/dates.ts, lib/project.ts  date math, validation
 ```

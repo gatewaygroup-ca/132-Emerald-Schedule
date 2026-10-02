@@ -6,7 +6,7 @@
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": false,
+    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -32,7 +32,7 @@
     "next-env.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
-    "lib/**/*.ts",
+    "lib/**/*.ts", "lib/**/*.mjs",
     "components/**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"

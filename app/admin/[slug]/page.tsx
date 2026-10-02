@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import ScheduleEditor from "@/components/admin/ScheduleEditor";
 import { isAdmin } from "@/lib/auth";
-import { canWrite, getProject, githubEditUrl, listProjects } from "@/lib/store";
+import { canWrite, getProject, githubNewFileUrl } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Edit Schedule" };
@@ -11,6 +11,6 @@ export default async function EditPage({ params }: { params: Promise<{ slug: str
   if (!(await isAdmin())) redirect("/admin");
   const project = await getProject((await params).slug);
   if (!project) notFound();
-  const publish = canWrite() ? undefined : { editUrl: githubEditUrl(), allProjects: await listProjects() };
+  const publish = canWrite() ? undefined : { newFileUrl: githubNewFileUrl() };
   return <ScheduleEditor initial={project} publish={publish} />;
 }

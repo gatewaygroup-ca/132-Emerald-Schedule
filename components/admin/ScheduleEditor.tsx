@@ -6,6 +6,7 @@ import { saveSchedule } from "@/app/admin/actions";
 import ScheduleView from "@/components/ScheduleView";
 import { addDays, durationDays, formatDuration, isIsoDate, localToday, fromDay } from "@/lib/dates";
 import { newId, validateProject } from "@/lib/project";
+import { serializeProject, versionFileName } from "@/lib/projectFormat";
 import { STATUSES, STATUS_LABELS, type Project, type ScheduleItem, type Status } from "@/lib/types";
 
 const input =
@@ -13,7 +14,10 @@ const input =
 const iconBtn =
   "flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30";
 
-type Publish = { editUrl: string; allProjects: Project[] };
+type Publish = { newFileUrl: string };
+
+// Above this length the update is copied to the clipboard instead of put in the URL.
+const MAX_URL = 7500;
 
 export default function ScheduleEditor({
   initial,
@@ -30,7 +34,7 @@ export default function ScheduleEditor({
   const [schedule, setSchedule] = useState<ScheduleItem[]>(initial.schedule);
   const [updatedAt, setUpdatedAt] = useState(initial.updatedAt);
   const [dirty, setDirty] = useState(isNew);
-  const [publishJson, setPublishJson] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<{ url: string; json: string; prefilled: boolean; path: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [savedMsg, setSavedMsg] = useState("");
@@ -47,7 +51,7 @@ export default function ScheduleEditor({
   function touch() {
     setDirty(true);
     setSavedMsg("");
-    setPublishJson(null);
+    setPublishing(null);
   }
 
   function updateItem(id: string, patch: Partial<ScheduleItem>) {
@@ -97,16 +101,26 @@ export default function ScheduleEditor({
       setErrors(result.errors);
       return;
     }
-    const updated: Project = { slug: initial.slug, ...result.project, updatedAt: new Date().toISOString() };
-    const exists = p.allProjects.some((x) => x.slug === initial.slug);
-    const all = exists
-      ? p.allProjects.map((x) => (x.slug === initial.slug ? updated : x))
-      : [...p.allProjects, updated];
-    const json = JSON.stringify(all, null, 2) + "\n";
-    setPublishJson(json);
+    const now = new Date();
+    const project: Project = { slug: initial.slug, ...result.project, updatedAt: now.toISOString() };
+    const json = serializeProject(project);
+    const path = `data/projects/${initial.slug}/${versionFileName(now)}`;
+    const params = new URLSearchParams({
+      filename: path,
+      value: json,
+      message: `Update schedule: ${project.propertyAddress}`,
+    });
+    let url = `${p.newFileUrl}?${params}`;
+    const prefilled = url.length <= MAX_URL;
+    if (!prefilled) {
+      params.delete("value");
+      url = `${p.newFileUrl}?${params}`;
+      copy(json);
+    }
+    setPublishing({ url, json, prefilled, path });
     setCopied(false);
-    copy(json);
     setDirty(false);
+    window.open(url, "_blank", "noopener");
   }
 
   function save() {
@@ -139,12 +153,12 @@ export default function ScheduleEditor({
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <span className="text-sm text-slate-500" aria-live="polite">
-              {saving ? "Saving…" : dirty ? "Unsaved changes" : publishJson ? "Ready to publish ↓" : savedMsg}
+              {saving ? "Saving…" : dirty ? "Unsaved changes" : publishing ? "Finish on GitHub ↓" : savedMsg}
             </span>
             <button
               type="button"
               onClick={save}
-              disabled={saving || !dirty}
+              disabled={saving || (!dirty && !publish)}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
               {publish ? "Publish on GitHub" : "Save changes"}
@@ -302,42 +316,38 @@ export default function ScheduleEditor({
             <button
               type="button"
               onClick={save}
-              disabled={saving || !dirty}
+              disabled={saving || (!dirty && !publish)}
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
               {publish ? "Publish on GitHub" : "Save changes"}
             </button>
           </div>
 
-          {publish && publishJson && (
+          {publish && publishing && (
             <div className="mt-6 rounded-md border border-slate-300 bg-slate-50 p-4 text-sm text-slate-800">
-              <p className="font-semibold text-slate-900">Publish this update on GitHub</p>
+              <p className="font-semibold text-slate-900">Last step: commit on GitHub</p>
               <ol className="mt-2 list-decimal space-y-1 pl-5">
                 <li>
-                  {copied ? "The update is copied." : "Copy the update:"}{" "}
-                  <button type="button" onClick={() => copy(publishJson)} className="font-medium underline">
-                    {copied ? "Copy again" : "Copy update"}
-                  </button>
+                  GitHub opened in a new tab (sign in if asked).{" "}
+                  <a href={publishing.url} target="_blank" rel="noreferrer" className="font-medium underline">
+                    Open it again ↗
+                  </a>
                 </li>
+                {!publishing.prefilled && (
+                  <li>
+                    Click in the empty file and paste (Ctrl/Cmd + V).{" "}
+                    <button type="button" onClick={() => copy(publishing.json)} className="font-medium underline">
+                      {copied ? "Copied" : "Copy again"}
+                    </button>
+                  </li>
+                )}
                 <li>
-                  <a href={publish.editUrl} target="_blank" rel="noreferrer" className="font-medium underline">
-                    Open the schedule file on GitHub ↗
-                  </a>{" "}
-                  (sign in if asked).
-                </li>
-                <li>Click in the file, select all (Ctrl/Cmd + A), and paste (Ctrl/Cmd + V).</li>
-                <li>
-                  Click <strong>Commit changes…</strong>, then <strong>Commit changes</strong> again.
+                  Click the green <strong>Commit changes…</strong> button, then <strong>Commit changes</strong>.
                 </li>
               </ol>
-              <p className="mt-2 text-slate-600">The client page updates about a minute after you commit.</p>
-              <textarea
-                readOnly
-                value={publishJson}
-                onFocus={(e) => e.currentTarget.select()}
-                className="mt-3 h-28 w-full rounded-md border border-slate-300 bg-white p-2 font-mono text-xs text-slate-700"
-                aria-label="Update to paste into GitHub"
-              />
+              <p className="mt-2 text-slate-600">
+                The client page updates about a minute after you commit. Nothing changes until you commit.
+              </p>
             </div>
           )}
         </section>

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import ScheduleEditor from "@/components/admin/ScheduleEditor";
 import { isAdmin } from "@/lib/auth";
 import { slugify } from "@/lib/project";
-import { canWrite, getProject, githubEditUrl, listProjects } from "@/lib/store";
+import { canWrite, getProject, githubNewFileUrl } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "New Schedule" };
@@ -25,7 +25,7 @@ export default async function DraftPage({ searchParams }: { searchParams: Promis
         schedule: [],
         updatedAt: new Date().toISOString(),
       }}
-      publish={{ editUrl: githubEditUrl(), allProjects: await listProjects() }}
+      publish={{ newFileUrl: githubNewFileUrl() }}
       isNew
     />
   );
