@@ -1,0 +1,30 @@
+{
+  "slug": "56-fairleigh",
+  "projectName": "",
+  "propertyAddress": "56 Fairleigh, Hamilton, ON",
+  "updatedAt": "2026-10-02T21:34:10.960Z",
+  "schedule": [
+    {"id":"f1","activity":"Brick Work","startDate":"2026-04-17","endDate":"2026-04-17","status":"complete"},
+    {"id":"f2","activity":"Exterior Metal","startDate":"2026-05-05","endDate":"2026-05-05","status":"complete"},
+    {"id":"f3","activity":"Demo","startDate":"2026-05-22","endDate":"2026-05-22","status":"complete"},
+    {"id":"f4","activity":"Permit","startDate":"2026-07-10","endDate":"2026-07-10","status":"complete"},
+    {"id":"f5","activity":"Framing","startDate":"2026-07-27","endDate":"2026-10-19","status":"complete"},
+    {"id":"f6","activity":"Exterior Paint","startDate":"2026-08-10","endDate":"2026-08-26","status":"complete"},
+    {"id":"f7","activity":"Windows","startDate":"2026-09-10","endDate":"2026-10-02","status":"in-progress"},
+    {"id":"f8","activity":"Waterproofing","startDate":"2026-09-14","endDate":"2026-09-18","status":"complete"},
+    {"id":"f9","activity":"HVAC","startDate":"2026-10-23","endDate":"2026-11-03","status":"upcoming"},
+    {"id":"f10","activity":"Plumbing","startDate":"2026-11-07","endDate":"2026-11-21","status":"upcoming"},
+    {"id":"f11","activity":"Electrical","startDate":"2026-11-25","endDate":"2026-11-29","status":"upcoming"},
+    {"id":"f12","activity":"Insulation","startDate":"2026-12-03","endDate":"2026-12-05","status":"upcoming"},
+    {"id":"f13","activity":"Drywall / Mud","startDate":"2026-12-11","endDate":"2026-12-25","status":"upcoming"},
+    {"id":"f14","activity":"Paint","startDate":"2026-12-31","endDate":"2027-01-21","status":"upcoming"},
+    {"id":"f15","activity":"Flooring","startDate":"2027-01-25","endDate":"2027-01-27","status":"upcoming"},
+    {"id":"f16","activity":"Trim & Doors","startDate":"2027-01-29","endDate":"2027-02-02","status":"upcoming"},
+    {"id":"f17","activity":"Kitchens","startDate":"2027-02-06","endDate":"2027-02-20","status":"upcoming"},
+    {"id":"f18","activity":"Bathrooms","startDate":"2027-02-06","endDate":"2027-02-21","status":"upcoming"},
+    {"id":"f19","activity":"Decks & Porch","startDate":"2027-02-25","endDate":"2027-02-28","status":"upcoming"},
+    {"id":"f20","activity":"Walkway & Grading","startDate":"2027-03-04","endDate":"2027-03-11","status":"upcoming"},
+    {"id":"f21","activity":"Final Finishing","startDate":"2027-03-17","endDate":"2027-03-21","status":"upcoming"},
+    {"id":"f22","activity":"Inspection / Deficiencies","startDate":"2027-03-24","endDate":"2027-04-04","status":"upcoming"}
+  ]
+}
