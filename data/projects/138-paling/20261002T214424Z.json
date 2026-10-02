@@ -1,0 +1,28 @@
+{
+  "slug": "138-paling",
+  "projectName": "",
+  "propertyAddress": "138 Paling Road, Hamilton, ON",
+  "updatedAt": "2026-10-02T21:44:24.069Z",
+  "schedule": [
+    {"id":"p1","activity":"Servicing","startDate":"2026-03-24","endDate":"2026-03-24","status":"complete"},
+    {"id":"p2","activity":"Demo","startDate":"2026-04-17","endDate":"2026-04-17","status":"complete"},
+    {"id":"p3","activity":"Excavation","startDate":"2026-05-13","endDate":"2026-05-13","status":"complete"},
+    {"id":"p4","activity":"Footing","startDate":"2026-05-20","endDate":"2026-05-20","status":"complete"},
+    {"id":"p5","activity":"Foundation","startDate":"2026-06-11","endDate":"2026-06-11","status":"complete"},
+    {"id":"p6","activity":"Backfill","startDate":"2026-06-24","endDate":"2026-06-24","status":"complete"},
+    {"id":"p7","activity":"Framing","startDate":"2026-07-16","endDate":"2026-08-14","status":"complete"},
+    {"id":"p8","activity":"Roof","startDate":"2026-08-27","endDate":"2026-08-28","status":"complete"},
+    {"id":"p9","activity":"Brick Veneer","startDate":"2026-09-25","endDate":"2026-10-02","status":"in-progress"},
+    {"id":"p10","activity":"HVAC","startDate":"2026-08-19","endDate":"2026-08-31","status":"in-progress"},
+    {"id":"p11","activity":"Plumbing","startDate":"2026-09-21","endDate":"2026-09-25","status":"complete"},
+    {"id":"p12","activity":"Electrical","startDate":"2026-09-15","endDate":"2026-09-30","status":"in-progress"},
+    {"id":"p13","activity":"Exterior Metal","startDate":"2026-08-19","endDate":"2026-09-25","status":"in-progress"},
+    {"id":"p14","activity":"Insulation","startDate":"2026-10-01","endDate":"2026-10-09","status":"in-progress"},
+    {"id":"p15","activity":"Drywall","startDate":"2026-10-12","endDate":"2026-10-30","status":"upcoming"},
+    {"id":"p16","activity":"Paint","startDate":"2026-11-02","endDate":"2026-11-30","status":"upcoming"},
+    {"id":"p17","activity":"Flooring","startDate":"2026-11-09","endDate":"2026-11-23","status":"upcoming"},
+    {"id":"p18","activity":"Kitchen","startDate":"2026-11-16","endDate":"2026-11-30","status":"upcoming"},
+    {"id":"p19","activity":"Millwork","startDate":"2026-11-23","endDate":"2026-12-07","status":"upcoming"},
+    {"id":"p20","activity":"Tile","startDate":"2026-11-16","endDate":"2026-12-14","status":"upcoming"}
+  ]
+}
