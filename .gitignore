@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+.env
+.env*.local
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+# local dev data store (created on first save)
+data/projects.local.json

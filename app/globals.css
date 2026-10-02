@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Status colours: muted, professional */
+  --color-st-complete: #5f8b6e;
+  --color-st-progress: #3d6a99;
+  --color-st-upcoming: #d9dee5;
+  --color-st-upcoming-border: #aab3bf;
+  --color-st-delayed: #b5603f;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #ffffff;
+  color: #1f2933;
+  -webkit-font-smoothing: antialiased;
+}
